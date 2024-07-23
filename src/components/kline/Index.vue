@@ -15,7 +15,8 @@
         lgCharts: null,
         data: [],
         nodeList: [],
-        length: 0
+        length: 0,
+        count: 0
       }
     },
     mounted() {
@@ -87,6 +88,9 @@
         this.callbackFn();
       },
       callbackFn() {
+          this.count++;
+          if (this.count > 1000) return;
+
           console.log("#call========", this.nodeList[this.length]);
           let current = null;
           
