@@ -1,28 +1,25 @@
 <template>
   <div>
-    <button @click="showWin">
-      @twa-dev/sdk --> {{ WebApp.version }}
-    </button>
+    <Kline />
+    <HelloWorld msg="Telegram mini app" />
   </div>
-  <!-- <HelloWorld msg="Vite + Vue" /> -->
 </template>
 <!-- <script setup lang="ts"> -->
 <script>
   import WebApp from '@twa-dev/sdk'
-  // import HelloWorld from './components/HelloWorld.vue'
+  import Kline from './components/kline/Index.vue'
+  import HelloWorld from './components/HelloWorld.vue'
 
   export default {
+    components: {
+      Kline, HelloWorld
+    },
     data() {
       return {
         WebApp
       }
     },
     methods: {
-      showWin() {
-        console.log("#WebApp ---- ", WebApp)
-
-        this.WebApp.showPopup(`Hello World! ...`)
-      }
     }
   }
 </script>
