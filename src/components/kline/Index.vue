@@ -4,6 +4,8 @@
 
 <script>
   import tickers from './data.js';
+  import './lightweight-charts.js';
+
   const { ticker } = tickers;
 
   export default {
