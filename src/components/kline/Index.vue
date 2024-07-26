@@ -44,77 +44,32 @@
         let seconds = new Date().getTime();
         let _ticker = [];
         // ticker.length 527
-        for(let i=0; i < 400; i++) {
+        for(let i=0; i < 200; i++) {
           node = { value: ticker[i].value, time: seconds + 200 };
           node.format = new Date(node.time).toLocaleTimeString();
           seconds = node.time;
-          _ticker.push(node);
+          data.push(node);
         } 
-        this.data = _ticker.filter((item, index) => index < 500);
+        this.data = data
 
         this.initKling(this.data);
 
-        let radio = 6;
-        let start;
-        let end;
-        let dif;
-        let step;
-
-        for (let i = 0; i <= radio; i++) {
-          if (i > 0) {
-            start = Number(this.data[i-1].value);
-            end = Number(this.data[i].value);
-          } else {
-            start = Number(this.data[0].value);
-            end = Number(this.data[1].value);
-          }
-          dif = end - start;
-          step = dif / radio;
-
-          for (let v = 0; v <= radio; v++) {
-            if (v === 0) {
-              this.nodeList.push({ value: start - step * 0.55, time: this.data[v].time });
-              this.nodeList.push({ value: start - step * 0.75, time: this.data[v].time });
-              this.nodeList.push({ value: start - step * 0.55, time: this.data[v].time });
-              this.nodeList.push({ value: start, time: this.data[v].time });
-            } else {
-              let node = { value: start + step * v, time: this.data[v].time };
-              this.nodeList.push(node);
-            }
-          }
-        }
-        this.length = this.nodeList.length - 1;
+        this.length = 201;
         this.callbackFn();
       },
       callbackFn() {
           this.count++;
           if (this.count > 1000) return;
 
-          console.log("#call========", this.nodeList[this.length]);
-          let current = null;
-          
-          if (this.nodeList[this.length]) {
-            current = {
-              time: this.nodeList[this.length].time + 125,
-              value: this.nodeList[this.length].value
-            }
-          }
-
-          if (this.length > 0) {
-            this.length--;
-          } else {
-            this.length = this.nodeList.length;
-          }
-          
-          if (current) {
-            this.data.push(current);
-            this.series.setData(this.data);
-          }
+          let current = ticker[this.length];
+          this.length++;
+          this.data.push(current);
+          this.series.setData(this.data);
           
           // cancelAnimationFrame取消请求动画帧
           setTimeout(() => {
             window.requestAnimationFrame(this.callbackFn);
-          }, 100);
+          }, 125);
       },
       initKling(data) {
           const container = document.getElementById("ticker");
@@ -149,7 +104,7 @@
             },
             timeScale: {
               ticksVisible: true,
-              barSpacing: 2,  // 时间刻度的宽度, 使曲线变化比较平顺
+              barSpacing: 5,  // 时间刻度的宽度, 使曲线变化比较平顺
               minBarSpacing: 0.01,
               rightOffset: 5,  // 线与右侧的距离
               visible: true,

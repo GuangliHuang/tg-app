@@ -6509,11 +6509,14 @@
                     item.f = new Date(item.originalTime).toLocaleTimeString()
                 });
 
+                console.log("maxIndexesPerMark ", maxIndexesPerMark, " ", JSON.parse(JSON.stringify(currentWeight)));
+
                 for (let i = 0; i < currentWeightLength; i++) {
                     const mark = currentWeight[i];
                     const currentIndex = mark.index;
                     // Determine indexes with which current index will be compared
                     // All marks to the right is moved to new array
+                    console.log("@1", "#prevMarksPointer ", prevMarksPointer, " #prevMarksLength", prevMarksLength, " mark:", mark);
                     while (prevMarksPointer < prevMarksLength) {
                         const lastMark = prevMarks[prevMarksPointer];
                         const lastIndex = lastMark.index;
@@ -6522,6 +6525,7 @@
                             marks.push(lastMark);
                             leftIndex = lastIndex;
                             rightIndex = Infinity;
+                            console.log("@2 #lastIndex ", lastIndex, " #currentIndex", currentIndex);
                         }
                         else {
                             rightIndex = lastIndex;
@@ -6531,6 +6535,7 @@
                     if (rightIndex - currentIndex >= maxIndexesPerMark && currentIndex - leftIndex >= maxIndexesPerMark) {
                         // TickMark fits. Place it into new array
                         marks.push(mark);
+                        console.log("@3#rightIndex ", rightIndex, " #currentIndex", currentIndex, " leftIndex", leftIndex, mark);
                         leftIndex = currentIndex;
                     }
                     else {
