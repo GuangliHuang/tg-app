@@ -1,5 +1,5 @@
 <template>
-  <div id="klineContainer" style="width: 100%;height: 308px; margin: 20px auto;position: relative;"></div>
+  <div id="klineContainer" style="width: 100%;height: 310px;position: relative;"></div>
 </template>
 
 <script>
@@ -14,7 +14,6 @@
     data() {
       return {
         series: null,
-        lgCharts: null,
         data: [],
         nodeList: [],
         length: 0
@@ -25,7 +24,7 @@
     },
     methods: {
       render() {
-        this.lgCharts = window.LightweightCharts;
+        window.LightweightCharts = createChart;
         const {
           LineData,
           PriceLineSource,
@@ -55,7 +54,7 @@
         this.data.forEach(item => {
             console.log(item)
         });
-        this.initKling(this.data);
+        this.initKling(this.data, 310, 2);
 
         this.length = 201;
         this.callbackFn();
@@ -63,10 +62,10 @@
       callbackFn() {
           let node = ticker[this.length];
           let t = this.data[this.data.length - 1].time;
-          let current = { value: node.value, time: t + 200 };
+          let current = { value: Number(node.value.toFixed(4)), time: t + 200 };
           current.format = new Date(current.time).toLocaleTimeString();
           
-          console.log("#this.data ", this.data);
+          console.log(current, "   ***");
 
           this.length++;
           this.data.push(current);
@@ -77,51 +76,40 @@
             window.requestAnimationFrame(this.callbackFn);
           }, 125);
       },
-      initKling(data) {
+      initKling(data, h, s) {
           const container = document.getElementById("klineContainer");
+          let scale = s > 10 ? 10 : s;
           let width = container.offsetWidth;
-          let height = container.offsetHeight;
-
-          // this.lgCharts.createChart
-          let chart = createChart(container, {
-            // 禁止缩放
-            handleScale: {
-                mouseWheel: false,
-                pinch: false,
-                axisPressedMouseMove: false
-            },
+          let height = h - 34;
+          this.chart = createChart(container, {
             rightPriceScale: {
-              minimumWidth: 0.5, // 纵座标与容器右侧的距离
-              autoScale: true,
-              labelVisible: true,
-              borderVisible: true, 
-              ticksVisible: true,
-              scaleMargins: {
-                top: 0.1,
-                bottom: 0.1,
-              }
+                autoScale: true,  // 关闭自动调整刻度
+                mode: 0, // 设置为1表示手动模式
+                scaleMargins: {
+                  top: 0.2,
+                  bottom: 0.3,
+                },
+                borderVisible: false
+            },
+            timeScale: {
+                barSpacing: 2,  // 时间刻度的宽度, 使曲线变化比较平顺
+                rightOffset: 5,  // 线与右侧的距离
+                timeVisible: true,
+                secondsVisible: true,
+                borderVisible: true,
+                tickMarkFormatter: (time, tickMarkType, locale) => {
+                  const date = new Date(time); // 将时间戳转换为 Date 对象
+                  const formatTime = date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                  return formatTime;
+                }
             },
             layout: {
               textColor: '#333',
               background: {
                   type: 'solid',
-                  color: '#1b2023',
+                  color: '#231938',
               },
               textColor: 'rgba(255, 255, 255, 1)',
-            },
-            timeScale: {
-              ticksVisible: true,
-              barSpacing: 5,  // 时间刻度的宽度, 使曲线变化比较平顺
-              minBarSpacing: 0.01,
-              rightOffset: 5,  // 线与右侧的距离
-              visible: true,
-              secondsVisible: true,
-              timeVisible: true,
-              fixLeftEdge: true,
-              tickMarkFormatter: (time, tickMarkType, locale) => {
-                let date = new Date(time);
-                return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-              }
             },
             grid: {
               horzLines: {
@@ -131,36 +119,38 @@
               vertLines: {
                 color: '#303030',
                 visible: false
-              },
+              }
             },
             crosshair: {
               vertLine: {
                 labelVisible: false,
               },
               mode: 2
+            },
+            // 禁止缩放
+            handleScale: {
+                mouseWheel: false,
+                pinch: false,
+                axisPressedMouseMove: false
             }
           });
+      
+          this.chart.resize(width, height);
 
-          chart.resize(width, height);
-
-          this.series = chart.addAreaSeries({
-            topColor: 'rgba(255, 199, 0, 0.35)',
-            bottomColor: 'rgba(255, 199, 0, 0.05)',
-            lineColor: 'rgba(255, 209, 92, 1)',
+          this.series = this.chart.addAreaSeries({
+            topColor: 'rgba(121, 96, 71, 1)',
+            bottomColor: 'rgba(121, 96, 71, 0.05)',
+            lineColor: '#ffd15c',
             lineWidth: 2,
             lineType: 2,
             lastPriceAnimation: 1,
-            priceLineSource: 1,
-            lastValueVisible: true,
-            priceLineColor: 'green',
-            lastValueVisible: true,
+            priceLineColor: '#3df9a0',
             priceFormat: {
                 type: 'price',
-                minMove: 0.1,
-                precision: 1,
+                minMove: scale <= 1 ? 0.01 : Number(Number(0).toFixed(scale - 1) + 1), // 价格数值越小，minMove也要变小，否则纵坐标无法显示
+                precision: scale,
             }
           });
-
           this.series.setData(data);
       }
     }
@@ -169,4 +159,3 @@
 
 <style scoped>
 </style>
-./lightweightCharts.js./lightweight-charts.js
