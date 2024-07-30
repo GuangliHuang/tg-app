@@ -51,8 +51,8 @@
           data.push(node);
         } 
         this.data = data
-        this.data.forEach(item => {
-            console.log(item)
+        this.data.forEach((item, index) => {
+            console.log("# ", new Date(item.time).toLocaleTimeString())
         });
         this.initKling(this.data, 310, 2);
 
@@ -61,20 +61,49 @@
       },
       callbackFn() {
           let node = ticker[this.length];
+          if (!node) return;
           let t = this.data[this.data.length - 1].time;
-          let current = { value: Number(node.value.toFixed(4)), time: t + 200 };
+          let current = { value: node.value, time: t + 200 };
           current.format = new Date(current.time).toLocaleTimeString();
-          
-          console.log(current, "   ***");
 
           this.length++;
           this.data.push(current);
+
+          // let previous = ticker[this.length];
+          // let start = Number(previous.value);
+          // let end = Number(ticker[this.length].value);
+          // let dif = end - start;
+          // let radio = 6; // dif >= 1 ? 100 : 10;
+          // let step = dif / radio;
+          
+          // let t = this.data[this.data.length - 1].time;
+          // let node = {}
+          // for (let i = 0; i <= radio; i++) {
+          //   if (i === 0) {
+          //     this.data.push({ value: start - step * 0.55, time: t + 125 });
+
+          //     t = this.data[this.data.length - 1].time;
+          //     this.data.push({ value: start - step * 0.75, time: t + 125 });
+
+          //     t = this.data[this.data.length - 1].time;
+          //     this.data.push({ value: start - step * 0.55, time: t + 125 });
+              
+          //     t = this.data[this.data.length - 1].time;
+          //     this.data.push({ value: start, time: t + 255 });
+          //   } else {
+          //     t = this.data[this.data.length - 1].time;
+          //     node = { value: start + step * i, time: t + 125 };
+          //     this.data.push(node);
+          //   }
+          // }
+
+          this.length++;
           this.series.setData(this.data);
 
           // cancelAnimationFrame取消请求动画帧
           setTimeout(() => {
             window.requestAnimationFrame(this.callbackFn);
-          }, 125);
+          }, 250);
       },
       initKling(data, h, s) {
           const container = document.getElementById("klineContainer");
