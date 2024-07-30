@@ -1,10 +1,11 @@
 <template>
-  <div id="ticker" style="width: 100%;height: 308px; margin: 20px auto;position: relative;"></div>
+  <div id="klineContainer" style="width: 100%;height: 308px; margin: 20px auto;position: relative;"></div>
 </template>
 
 <script>
   import tickers from './data.js';
-  import './lightweight-charts.js';
+  import { createChart } from 'lightweight-charts';
+  // import './lightweight-charts.js';
 
   const { ticker } = tickers;
 
@@ -16,8 +17,7 @@
         lgCharts: null,
         data: [],
         nodeList: [],
-        length: 0,
-        count: 0
+        length: 0
       }
     },
     mounted() {
@@ -44,7 +44,6 @@
         let data = [];
         let node = {};
         let seconds = new Date().getTime();
-        let _ticker = [];
         // ticker.length 527
         for(let i=0; i < 200; i++) {
           node = { value: ticker[i].value, time: seconds + 200 };
@@ -53,32 +52,38 @@
           data.push(node);
         } 
         this.data = data
-
+        this.data.forEach(item => {
+            console.log(item)
+        });
         this.initKling(this.data);
 
         this.length = 201;
         this.callbackFn();
       },
       callbackFn() {
-          this.count++;
-          if (this.count > 1000) return;
+          let node = ticker[this.length];
+          let t = this.data[this.data.length - 1].time;
+          let current = { value: node.value, time: t + 200 };
+          current.format = new Date(current.time).toLocaleTimeString();
+          
+          console.log("#this.data ", this.data);
 
-          let current = ticker[this.length];
           this.length++;
           this.data.push(current);
           this.series.setData(this.data);
-          
+
           // cancelAnimationFrame取消请求动画帧
           setTimeout(() => {
             window.requestAnimationFrame(this.callbackFn);
           }, 125);
       },
       initKling(data) {
-          const container = document.getElementById("ticker");
+          const container = document.getElementById("klineContainer");
           let width = container.offsetWidth;
           let height = container.offsetHeight;
 
-          let chart = this.lgCharts.createChart(container, {
+          // this.lgCharts.createChart
+          let chart = createChart(container, {
             // 禁止缩放
             handleScale: {
                 mouseWheel: false,
@@ -142,7 +147,7 @@
             topColor: 'rgba(255, 199, 0, 0.35)',
             bottomColor: 'rgba(255, 199, 0, 0.05)',
             lineColor: 'rgba(255, 209, 92, 1)',
-            lineWidth: 2.75,
+            lineWidth: 2,
             lineType: 2,
             lastPriceAnimation: 1,
             priceLineSource: 1,
