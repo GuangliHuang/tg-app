@@ -161,7 +161,6 @@
         const dashPattern = dashPatterns[style];
         ctx.setLineDash(dashPattern);
     }
-    // ###draw price line
     function drawHorizontalLine(ctx, y, left, right) {
         ctx.beginPath();
         const correction = (ctx.lineWidth % 2) ? 0.5 : 0;
@@ -169,25 +168,26 @@
         ctx.lineTo(right, y + correction);
         ctx.stroke();
     }
-    // function drawVerticalLine(ctx, x, top, bottom) {
-    //     ctx.beginPath();
-    //     const correction = (ctx.lineWidth % 2) ? 0.5 : 0;
-    //     ctx.moveTo(x + correction, top);
-    //     ctx.lineTo(x + correction, bottom);
-    //     ctx.stroke();
-    // }
-    // function strokeInPixel(ctx, drawFunction) {
-    //     ctx.save();
-    //     if (ctx.lineWidth % 2) {
-    //         ctx.translate(0.5, 0.5);
-    //     }
-    //     drawFunction();
-    //     ctx.restore();
-    // }
+    function drawVerticalLine(ctx, x, top, bottom) {
+        ctx.beginPath();
+        const correction = (ctx.lineWidth % 2) ? 0.5 : 0;
+        ctx.moveTo(x + correction, top);
+        ctx.lineTo(x + correction, bottom);
+        ctx.stroke();
+    }
+    function strokeInPixel(ctx, drawFunction) {
+        ctx.save();
+        if (ctx.lineWidth % 2) {
+            ctx.translate(0.5, 0.5);
+        }
+        drawFunction();
+        ctx.restore();
+    }
 
     /**
+     * Checks an assertion. Throws if the assertion is failed.
      *
-     * @param condition - Result of the a1ssertion evaluation
+     * @param condition - Result of the assertion evaluation
      * @param message - Text to include in the exception message
      */
     function assert(condition, message) {
@@ -716,7 +716,6 @@
             this._internal__data = data;
         }
         _internal__drawImpl({ context: ctx }) {
-            return; //#####
             if (this._internal__data === null || this._internal__data._internal_visibleRange === null) {
                 return;
             }
@@ -1072,7 +1071,6 @@
                 return geom;
             });
             target.useMediaCoordinateSpace(({ context: ctx }) => {
-                return;
                 const gm = geometry._internal_media;
                 ctx.font = rendererOptions._internal_font;
                 ctx.textAlign = geometry._internal_alignRight ? 'right' : 'left';
@@ -1288,10 +1286,82 @@
             this._private__data = null;
         }
         _internal_setData(data) {
-           //  this._private__data = data;
+            this._private__data = data;
         }
         _internal_draw(target, rendererOptions) {
-           
+            if (this._private__data === null || this._private__data._internal_visible === false || this._private__data._internal_text.length === 0) {
+                return;
+            }
+            const textWidth = target.useMediaCoordinateSpace(({ context: ctx }) => {
+                ctx.font = rendererOptions._internal_font;
+                return Math.round(rendererOptions._internal_widthCache._internal_measureText(ctx, ensureNotNull(this._private__data)._internal_text, optimizationReplacementRe));
+            });
+            if (textWidth <= 0) {
+                return;
+            }
+            const horzMargin = rendererOptions._internal_paddingHorizontal;
+            const labelWidth = textWidth + 2 * horzMargin;
+            const labelWidthHalf = labelWidth / 2;
+            const timeScaleWidth = this._private__data._internal_width;
+            let coordinate = this._private__data._internal_coordinate;
+            let x1 = Math.floor(coordinate - labelWidthHalf) + 0.5;
+            if (x1 < 0) {
+                coordinate = coordinate + Math.abs(0 - x1);
+                x1 = Math.floor(coordinate - labelWidthHalf) + 0.5;
+            }
+            else if (x1 + labelWidth > timeScaleWidth) {
+                coordinate = coordinate - Math.abs(timeScaleWidth - (x1 + labelWidth));
+                x1 = Math.floor(coordinate - labelWidthHalf) + 0.5;
+            }
+            const x2 = x1 + labelWidth;
+            const y1 = 0;
+            const y2 = Math.ceil(y1 +
+                rendererOptions._internal_borderSize +
+                rendererOptions._internal_tickLength +
+                rendererOptions._internal_paddingTop +
+                rendererOptions._internal_fontSize +
+                rendererOptions._internal_paddingBottom);
+            target.useBitmapCoordinateSpace(({ context: ctx, horizontalPixelRatio, verticalPixelRatio }) => {
+                const data = ensureNotNull(this._private__data);
+                ctx.fillStyle = data._internal_background;
+                const x1scaled = Math.round(x1 * horizontalPixelRatio);
+                const y1scaled = Math.round(y1 * verticalPixelRatio);
+                const x2scaled = Math.round(x2 * horizontalPixelRatio);
+                const y2scaled = Math.round(y2 * verticalPixelRatio);
+                const radiusScaled = Math.round(radius$1 * horizontalPixelRatio);
+                ctx.beginPath();
+                ctx.moveTo(x1scaled, y1scaled);
+                ctx.lineTo(x1scaled, y2scaled - radiusScaled);
+                ctx.arcTo(x1scaled, y2scaled, x1scaled + radiusScaled, y2scaled, radiusScaled);
+                ctx.lineTo(x2scaled - radiusScaled, y2scaled);
+                ctx.arcTo(x2scaled, y2scaled, x2scaled, y2scaled - radiusScaled, radiusScaled);
+                ctx.lineTo(x2scaled, y1scaled);
+                ctx.fill();
+                if (data._internal_tickVisible) {
+                    const tickX = Math.round(data._internal_coordinate * horizontalPixelRatio);
+                    const tickTop = y1scaled;
+                    const tickBottom = Math.round((tickTop + rendererOptions._internal_tickLength) * verticalPixelRatio);
+                    ctx.fillStyle = data._internal_color;
+                    const tickWidth = Math.max(1, Math.floor(horizontalPixelRatio));
+                    const tickOffset = Math.floor(horizontalPixelRatio * 0.5);
+                    ctx.fillRect(tickX - tickOffset, tickTop, tickWidth, tickBottom - tickTop);
+                }
+            });
+            target.useMediaCoordinateSpace(({ context: ctx }) => {
+                const data = ensureNotNull(this._private__data);
+                const yText = y1 +
+                    rendererOptions._internal_borderSize +
+                    rendererOptions._internal_tickLength +
+                    rendererOptions._internal_paddingTop +
+                    rendererOptions._internal_fontSize / 2;
+                ctx.font = rendererOptions._internal_font;
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = data._internal_color;
+                const textYCorrection = rendererOptions._internal_widthCache._internal_yMidCorrection(ctx, 'Apr0');
+                ctx.translate(x1 + horzMargin, yText + textYCorrection);
+                ctx.fillText(data._internal_text, 0, 0);
+            });
         }
     }
 
@@ -1827,7 +1897,6 @@
     }
 
     // eslint-disable-next-line max-params, complexity
-    // ###draw line
     function walkLine(renderingScope, items, lineType, visibleRange, barWidth, 
     // the values returned by styleGetter are compared using the operator !==,
     // so if styleGetter returns objects, then styleGetter should return the same object for equal styles
@@ -2036,7 +2105,6 @@
     // the values returned by styleGetter are compared using the operator !==,
     // so if styleGetter returns objects, then styleGetter should return the same object for equal styles
     styleGetter) {
-        return; //#########
         const { horizontalPixelRatio, verticalPixelRatio, context } = renderingScope;
         let prevStyle = null;
         const tickWidth = Math.max(1, Math.floor(horizontalPixelRatio));
@@ -2091,8 +2159,6 @@
             ctx.lineJoin = 'round';
             const styleGetter = this._internal__strokeStyle.bind(this);
             if (lineType !== undefined) {
-                //### draw line
-                console.log("#123 draw line barWidth", barWidth);
                 walkLine(renderingScope, items, lineType, visibleRange, barWidth, styleGetter, finishStyledArea);
             }
             if (pointMarkersRadius) {
@@ -2435,7 +2501,7 @@
             this._private__fillCache = new GradientStyleCache();
         }
         _internal__fillStyle(renderingScope, item) {
-            // eslint-disable-next-line @typescript-eslint/no-non-null-axssertion
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
             const data = this._internal__data;
             return this._private__fillCache._internal_get(renderingScope, {
                 _internal_topColor1: item._internal_topFillColor1,
@@ -3187,8 +3253,7 @@
                 break;
             }
         }
-        // ###date
-        // assert(currentStageData !== undefined, 'Last price animation internal logic error');
+        assert(currentStageData !== undefined, 'Last price animation internal logic error');
         const subStage = (globalStage - currentStageData._internal_start) / (currentStageData._internal_end - currentStageData._internal_start);
         return {
             _internal_fillColor: color(lineColor, subStage, currentStageData._internal_startFillAlpha, currentStageData._internal_endFillAlpha),
@@ -3337,7 +3402,6 @@
     }
 
     function drawArrow(up, ctx, centerX, centerY, size) {
-        return; //#######
         const arrowSize = shapeSize('arrowUp', size);
         const halfArrowSize = (arrowSize - 1) / 2;
         const baseSize = ceiledOdd(size / 2);
@@ -3385,7 +3449,7 @@
     }
 
     function drawText(ctx, text, x, y) {
-        // ctx.fillText(text, x, y);
+        ctx.fillText(text, x, y);
     }
     function hitTestText(textX, textY, textWidth, textHeight, x, y) {
         const halfHeight = textHeight / 2;
@@ -5038,7 +5102,6 @@
             this._private__data = data;
         }
         _internal__drawImpl({ context: ctx, bitmapSize, horizontalPixelRatio, verticalPixelRatio }) {
-            return; //########
             if (this._private__data === null) {
                 return;
             }
@@ -6429,7 +6492,7 @@
         }
         return first._internal_equals(second);
     }
-    // ###x0 time setting. set weight?
+
     class TickMarks {
         constructor() {
             this._private__marksByWeight = new Map();
@@ -6441,7 +6504,6 @@
             this._private__cache = null;
         }
         _internal_setTimeScalePoints(newPoints, firstChangedPointIndex) {
-            console.log("#newPoints ", newPoints);
             this._private__removeMarksSinceIndex(firstChangedPointIndex);
             this._private__cache = null;
             for (let index = firstChangedPointIndex; index < newPoints.length; ++index) {
@@ -6456,13 +6518,11 @@
                     time: point.time,
                     weight: point.timeWeight,
                     originalTime: point.originalTime,
-                    format: new Date(point.originalTime).toLocaleTimeString()
                 });
             }
         }
         _internal_build(spacing, maxWidth) {
             const maxIndexesPerMark = Math.ceil(maxWidth / spacing);
-            console.log("#build ", spacing, maxWidth, maxIndexesPerMark, this._private__cache);
             if (this._private__cache === null || this._private__cache._internal_maxIndexesPerMark !== maxIndexesPerMark) {
                 this._private__cache = {
                     _internal_marks: this._private__buildMarksImpl(maxIndexesPerMark),
@@ -6489,8 +6549,8 @@
                 this._private__marksByWeight.delete(weight);
             }
         }
-        // ###xbuild
         _private__buildMarksImpl(maxIndexesPerMark) {
+            //###xbuild
             let marks = [];
             for (const weight of Array.from(this._private__marksByWeight.keys()).sort((a, b) => b - a)) {
                 if (!this._private__marksByWeight.get(weight)) {
@@ -6505,18 +6565,11 @@
                 const currentWeightLength = currentWeight.length;
                 let rightIndex = Infinity;
                 let leftIndex = -Infinity;
-                currentWeight.forEach((item, index) => {
-                    item.f = new Date(item.originalTime).toLocaleTimeString()
-                });
-
-                console.log("maxIndexesPerMark ", maxIndexesPerMark, " ", JSON.parse(JSON.stringify(currentWeight)));
-
                 for (let i = 0; i < currentWeightLength; i++) {
                     const mark = currentWeight[i];
                     const currentIndex = mark.index;
                     // Determine indexes with which current index will be compared
                     // All marks to the right is moved to new array
-                    console.log("@1", "#prevMarksPointer ", prevMarksPointer, " #prevMarksLength", prevMarksLength, " mark:", mark);
                     while (prevMarksPointer < prevMarksLength) {
                         const lastMark = prevMarks[prevMarksPointer];
                         const lastIndex = lastMark.index;
@@ -6525,7 +6578,6 @@
                             marks.push(lastMark);
                             leftIndex = lastIndex;
                             rightIndex = Infinity;
-                            console.log("@2 #lastIndex ", lastIndex, " #currentIndex", currentIndex);
                         }
                         else {
                             rightIndex = lastIndex;
@@ -6535,7 +6587,6 @@
                     if (rightIndex - currentIndex >= maxIndexesPerMark && currentIndex - leftIndex >= maxIndexesPerMark) {
                         // TickMark fits. Place it into new array
                         marks.push(mark);
-                        console.log("@3#rightIndex ", rightIndex, " #currentIndex", currentIndex, " leftIndex", leftIndex, mark);
                         leftIndex = currentIndex;
                     }
                     else {
@@ -6549,32 +6600,22 @@
                     marks.push(prevMarks[prevMarksPointer]);
                 }
             }
-            marks.forEach((item, index) => {
-                let s = new Date(item.originalTime).getSeconds() % 10;
-                if (s >= 3 && s <= 7) {
-                    item.originalTime = item.originalTime - (s - 5) * 1000;
-                } else if (s >= 8) {
-                    item.originalTime = item.originalTime + (10 - s) * 1000;
-                } else {
-                    item.originalTime = item.originalTime - s * 1000;
-                }
-                // if (index === 0) {
-                //     let s = new Date(item.originalTime).getSeconds() % 10;
-                //     if (s >= 3 && s <= 7) {
-                //        item.originalTime = item.originalTime - (s - 5) * 1000;
-                //     } else if (s >= 8) {
-                //        item.originalTime = item.originalTime + (10 - s) * 1000;
-                //     } else {
-                //        item.originalTime = item.originalTime - s * 1000;
-                //     }
-                //     console.log(item.originalTime, " *** ", s);
-                // } else {
-                //     item.originalTime = marks[index - 1].originalTime + 1000 * 5;
-                // }
 
-                // item.format = new Date(item.originalTime).toLocaleTimeString();
+            marks.forEach((item, index) => {
+                if (index === 0) {
+                    let s = new Date(item.originalTime).getSeconds() % 10;
+                    if (s >= 3 && s <= 7) {
+                        item.originalTime = item.originalTime - (s - 5) * 1000;
+                    } else if (s >= 8) {
+                        item.originalTime = item.originalTime + (10 - s) * 1000;
+                    } else {
+                        item.originalTime = item.originalTime - s * 1000;
+                    }
+                } else {
+                    item.originalTime = marks[index - 1].originalTime + 1000 * 5;
+                }
             });
-            console.log("@3 - 4#marks ", marks);
+
             return marks;
         }
     }
@@ -6601,7 +6642,6 @@
     function markWithGreaterWeight(a, b) {
         return a.weight > b.weight ? a : b;
     }
-    // ###timeScale
     class TimeScale {
         constructor(model, options, localizationOptions, horzScaleBehavior) {
             this._private__width = 0;
@@ -6759,7 +6799,6 @@
                     const delta = oldWidth - newWidth;
                     // reduce  _rightOffset means move right
                     // we could move more than required - this will be fixed by _correctOffset()
-                    console.log(this._private__barSpacing, "###barspace delta", delta, " oldWidth", oldWidth, " newWidth", newWidth);
                     this._private__rightOffset -= Math.round(delta / this._private__barSpacing) + 1;
                     this._private__visibleRangeInvalidated = true;
                 }
@@ -6812,7 +6851,6 @@
             return this._private__rightOffset;
         }
         // eslint-disable-next-line complexity
-        // ###xx
         _internal_marks() {
             if (this._internal_isEmpty()) {
                 return null;
@@ -6830,7 +6868,6 @@
             const firstBar = Math.max(visibleBars._internal_left(), visibleBars._internal_left() - indexPerLabel);
             const lastBar = Math.max(visibleBars._internal_right(), visibleBars._internal_right() - indexPerLabel);
             const items = this._private__tickMarks._internal_build(spacing, maxLabelWidth);
-            console.log("#items ", items)
             // according to indexPerLabel value this value means "earliest index which _might be_ used as the second label on time scale"
             const earliestIndexOfSecondLabel = this._private__firstIndex() + indexPerLabel;
             // according to indexPerLabel value this value means "earliest index which _might be_ used as the second last label on time scale"
@@ -6849,7 +6886,6 @@
                     label.coord = this._internal_indexToCoordinate(tm.index);
                     label.label = this._private__formatLabel(tm);
                     label.weight = tm.weight;
-                    label.time = tm.originalTime;
                 }
                 else {
                     label = {
@@ -6857,7 +6893,6 @@
                         coord: this._internal_indexToCoordinate(tm.index),
                         label: this._private__formatLabel(tm),
                         weight: tm.weight,
-                        time: tm.originalTime
                     };
                     this._private__labels.push(label);
                 }
@@ -6874,7 +6909,6 @@
             }
             this._private__labels.length = targetIndex;
             this._private__timeMarksCache = this._private__labels;
-            console.log("#labels :", this._private__labels);
             return this._private__labels;
         }
         _internal_restoreDefault() {
@@ -6969,23 +7003,22 @@
             this._internal_scrollToOffsetAnimated(this._private__options.rightOffset);
         }
         _internal_scrollToOffsetAnimated(offset, animationDuration = 400 /* Constants.DefaultAnimationDuration */) {
-            // ###animation
-            // if (!isFinite(offset)) {
-            //     throw new RangeError('offset is required and must be finite number');
-            // }
-            // if (!isFinite(animationDuration) || animationDuration <= 0) {
-            //     throw new RangeError('animationDuration (optional) must be finite positive number');
-            // }
-            // const source = this._private__rightOffset;
-            // const animationStart = performance.now();
-            // this._private__model._internal_setTimeScaleAnimation({
-            //     _internal_finished: (time) => (time - animationStart) / animationDuration >= 1,
-            //     _internal_getPosition: (time) => {
-            //         const animationProgress = (time - animationStart) / animationDuration;
-            //         const finishAnimation = animationProgress >= 1;
-            //         return finishAnimation ? offset : source + (offset - source) * animationProgress;
-            //     },
-            // });
+            if (!isFinite(offset)) {
+                throw new RangeError('offset is required and must be finite number');
+            }
+            if (!isFinite(animationDuration) || animationDuration <= 0) {
+                throw new RangeError('animationDuration (optional) must be finite positive number');
+            }
+            const source = this._private__rightOffset;
+            const animationStart = performance.now();
+            this._private__model._internal_setTimeScaleAnimation({
+                _internal_finished: (time) => (time - animationStart) / animationDuration >= 1,
+                _internal_getPosition: (time) => {
+                    const animationProgress = (time - animationStart) / animationDuration;
+                    const finishAnimation = animationProgress >= 1;
+                    return finishAnimation ? offset : source + (offset - source) * animationProgress;
+                },
+            });
         }
         _internal_update(newPoints, firstChangedPointIndex) {
             this._private__visibleRangeInvalidated = true;
@@ -7088,7 +7121,6 @@
             const rightBorder = this._private__rightOffset + baseIndex;
             const leftBorder = rightBorder - newBarsLength + 1;
             const logicalRange = new RangeImpl(leftBorder, rightBorder);
-            console.log("###spacebar _private__width", this._private__width, " newBarsLength", newBarsLength, " logicalRange", logicalRange);
             this._private__setVisibleRange(new TimeScaleVisibleRange(logicalRange));
         }
         _private__correctBarSpacing() {
@@ -7117,7 +7149,6 @@
         _private__correctOffset() {
             // block scrolling of to future
             const maxRightOffset = this._private__maxRightOffset();
-            console.log("#maxRightOffset ", maxRightOffset);
             if (this._private__rightOffset > maxRightOffset) {
                 this._private__rightOffset = maxRightOffset;
                 this._private__visibleRangeInvalidated = true;
@@ -7141,7 +7172,6 @@
             return firstIndex - baseIndex - 1 + barsEstimation;
         }
         _private__maxRightOffset() {
-            console.log(this._private__width, "###barspace this._private__points.length", this._private__points.length);
             return this._private__options.fixRightEdge
                 ? 0
                 : (this._private__width / this._private__barSpacing) - Math.min(2 /* Constants.MinVisibleBarsCount */, this._private__points.length);
@@ -8131,7 +8161,6 @@
             const currentPoint = sortedTimePoints[index];
             const currentDate = new Date(cast(currentPoint.time)._internal_timestamp * 1000);
             if (prevDate !== null) {
-                // ###weight 控制字体加粗
                 currentPoint.timeWeight = weightByTime(currentDate, prevDate);
             }
             totalTimeDiff += cast(currentPoint.time)._internal_timestamp - (prevTime || cast(currentPoint.time)._internal_timestamp);
@@ -8146,51 +8175,47 @@
             sortedTimePoints[0].timeWeight = weightByTime(new Date(cast(sortedTimePoints[0].time)._internal_timestamp * 1000), approxPrevDate);
         }
     }
-    // ###date
+
     function businessDayConverter(time) {
         let businessDay = time;
-        // if (isString(time)) {
-        //     businessDay = stringToBusinessDay(time);
-        // }
-        // if (!isBusinessDay(businessDay)) {
-        //     throw new Error('time must be of type BusinessDay');
-        // }
-        // const date = new Date(Date.UTC(businessDay.year, businessDay.month - 1, businessDay.day, 0, 0, 0, 0));
+        if (isString(time)) {
+            businessDay = stringToBusinessDay(time);
+        }
+        if (!isBusinessDay(businessDay)) {
+            throw new Error('time must be of type BusinessDay');
+        }
+        const date = new Date(Date.UTC(businessDay.year, businessDay.month - 1, businessDay.day, 0, 0, 0, 0));
         return {
-            _internal_timestamp: time, // Math.round(date.getTime() / 1000),
+            _internal_timestamp: Math.round(date.getTime() / 1000),
             _internal_businessDay: businessDay,
         };
     }
-    // ###date
     function timestampConverter(time) {
-        // if (!isUTCTimestamp(time)) {
-        //     throw new Error('time must be of type isUTCTimestamp');
-        // }
+        if (!isUTCTimestamp(time)) {
+            throw new Error('time must be of type isUTCTimestamp');
+        }
         return {
             _internal_timestamp: time,
         };
     }
-    // ###date
     function selectTimeConverter(data) {
-        // if (data.length === 0) {
-        //     return null;
-        // }
-        // if (isBusinessDay(data[0].time) || isString(data[0].time)) {
-        //     return businessDayConverter;
-        // }
+        if (data.length === 0) {
+            return null;
+        }
+        if (isBusinessDay(data[0].time) || isString(data[0].time)) {
+            return businessDayConverter;
+        }
         return timestampConverter;
     }
     const validDateRegex = /^\d\d\d\d-\d\d-\d\d$/;
-    // ###date
     function convertTime(time) {
-        // if (isUTCTimestamp(time)) {
-        //     return timestampConverter(time);
-        // }
-        // if (!isBusinessDay(time)) {
-        //     return businessDayConverter(stringToBusinessDay(time));
-        // }
-        // return businessDayConverter(time);
-        return time;
+        if (isUTCTimestamp(time)) {
+            return timestampConverter(time);
+        }
+        if (!isBusinessDay(time)) {
+            return businessDayConverter(stringToBusinessDay(time));
+        }
+        return businessDayConverter(time);
     }
     function stringToBusinessDay(value) {
         {
@@ -8214,14 +8239,13 @@
             year: d.getUTCFullYear(),
         };
     }
-    // ###date
     function convertStringToBusinessDay(value) {
-        // if (isString(value.time)) {
-        //     value.time = stringToBusinessDay(value.time);
-        // }
+        if (isString(value.time)) {
+            value.time = stringToBusinessDay(value.time);
+        }
     }
     function convertStringsToBusinessDays(data) {
-        // return data.forEach(convertStringToBusinessDay);
+        return data.forEach(convertStringToBusinessDay);
     }
     // eslint-disable-next-line complexity
     function weightToTickMarkType(weight, timeVisible, secondsVisible) {
@@ -8266,9 +8290,7 @@
         createConverterToInternalObj(data) {
             return ensureNotNull(selectTimeConverter(data));
         }
-        // ###date
         key(item) {
-            return item;
             // eslint-disable-next-line no-restricted-syntax
             if (typeof item === 'object' && "_internal_timestamp" in item) {
                 return item._internal_timestamp;
@@ -8283,11 +8305,8 @@
                 ? new Date(time._internal_timestamp * 1000).getTime()
                 : new Date(Date.UTC(time._internal_businessDay.year, time._internal_businessDay.month - 1, time._internal_businessDay.day)).getTime();
         }
-        // ###date
         convertHorzItemToInternal(item) {
-            console.log("#item ", item, new Date(item).toLocaleTimeString());
-            return item;
-            // return convertTime(item);
+            return convertTime(item);
         }
         updateFormatter(options) {
             if (!this._private__options) {
@@ -8310,13 +8329,11 @@
             const tp = item;
             return this._private__dateTimeFormatter._internal_format(new Date(tp._internal_timestamp * 1000));
         }
-        // ###x 这个方法禁用后所有时间都会显示不出来
         formatTickmark(tickMark, localizationOptions) {
             const tickMarkType = weightToTickMarkType(tickMark.weight, this._private__options.timeScale.timeVisible, this._private__options.timeScale.secondsVisible);
             const options = this._private__options.timeScale;
             if (options.tickMarkFormatter !== undefined) {
                 const tickMarkString = options.tickMarkFormatter(tickMark.originalTime, tickMarkType, localizationOptions.locale);
-               // tickMarkString的值为时分秒，如：23:30:16
                 if (tickMarkString !== null) {
                     return tickMarkString;
                 }
@@ -10853,7 +10870,6 @@
     const sourcePaneViews = buildTimeAxisViewsGetter('normal');
     const sourceTopPaneViews = buildTimeAxisViewsGetter('top');
     const sourceBottomPaneViews = buildTimeAxisViewsGetter('bottom');
-    // ###time
     class TimeAxisWidget {
         constructor(chartWidget, horzScaleBehavior) {
             this._private__leftStub = null;
@@ -10902,7 +10918,7 @@
             this._private__topCanvasBinding.subscribeSuggestedBitmapSizeChanged(this._private__topCanvasSuggestedBitmapSizeChangedHandler);
             const topCanvas = this._private__topCanvasBinding.canvasElement;
             topCanvas.style.position = 'absolute';
-            topCanvas.style.zIndex = '22211';
+            topCanvas.style.zIndex = '2';
             topCanvas.style.left = '0';
             topCanvas.style.top = '0';
             this._private__element.appendChild(this._private__leftStubCell);
@@ -11012,8 +11028,8 @@
                 this._private__canvasBinding.resizeCanvasElement(timeAxisSize);
                 this._private__topCanvasBinding.resizeCanvasElement(timeAxisSize);
                 this._private__isSettingSize = false;
-                // this._private__cell.style.width = `${timeAxisSize.width}px`;
-                // this._private__cell.style.height = `${timeAxisSize.height}px`;
+                this._private__cell.style.width = `${timeAxisSize.width}px`;
+                this._private__cell.style.height = `${timeAxisSize.height}px`;
                 this._private__sizeChanged._internal_fire(timeAxisSize);
             }
             if (this._private__leftStub !== null) {
@@ -11052,17 +11068,16 @@
                 return;
             }
             if (type !== 1 /* InvalidationLevel.Cursor */) {
-                // ###paint
                 this._private__canvasBinding.applySuggestedBitmapSize();
                 const target = tryCreateCanvasRenderingTarget2D(this._private__canvasBinding);
                 if (target !== null) {
                     target.useBitmapCoordinateSpace((scope) => {
                         this._private__drawBackground(scope);
-                        // this._private__drawBorder(scope);
-                        // this._private__drawAdditionalSources(target, sourceBottomPaneViews);
+                        this._private__drawBorder(scope);
+                        this._private__drawAdditionalSources(target, sourceBottomPaneViews);
                     });
                     this._private__drawTickMarks(target);
-                    // this._private__drawAdditionalSources(target, sourcePaneViews);
+                    this._private__drawAdditionalSources(target, sourcePaneViews);
                     // atm we don't have sources to be drawn on time axis except crosshair which is rendered on top level canvas
                     // so let's don't call this code at all for now
                     // this._drawLabels(this._chart.model().dataSources(), target);
@@ -11074,15 +11089,15 @@
                     this._private__rightStub._internal_paint(type);
                 }
             }
-            // this._private__topCanvasBinding.applySuggestedBitmapSize();
-            // const topTarget = tryCreateCanvasRenderingTarget2D(this._private__topCanvasBinding);
-            // if (topTarget !== null) {
-            //     topTarget.useBitmapCoordinateSpace(({ context: ctx, bitmapSize }) => {
-            //         ctx.clearRect(0, 0, bitmapSize.width, bitmapSize.height);
-            //     });
-            //     this._private__drawLabels([...this._private__chart._internal_model()._internal_serieses(), this._private__chart._internal_model()._internal_crosshairSource()], topTarget);
-            //     this._private__drawAdditionalSources(topTarget, sourceTopPaneViews);
-            // }
+            this._private__topCanvasBinding.applySuggestedBitmapSize();
+            const topTarget = tryCreateCanvasRenderingTarget2D(this._private__topCanvasBinding);
+            if (topTarget !== null) {
+                topTarget.useBitmapCoordinateSpace(({ context: ctx, bitmapSize }) => {
+                    ctx.clearRect(0, 0, bitmapSize.width, bitmapSize.height);
+                });
+                this._private__drawLabels([...this._private__chart._internal_model()._internal_serieses(), this._private__chart._internal_model()._internal_crosshairSource()], topTarget);
+                this._private__drawAdditionalSources(topTarget, sourceTopPaneViews);
+            }
         }
         _private__drawAdditionalSources(target, axisViewsGetter) {
             const sources = this._private__chart._internal_model()._internal_serieses();
@@ -11112,22 +11127,21 @@
             const maxWeight = this._private__horzScaleBehavior.maxTickMarkWeight(tickMarks);
             const rendererOptions = this._private__getRendererOptions();
             const options = timeScale._internal_options();
-            // if (options.borderVisible && options.ticksVisible) {
-            //     target.useBitmapCoordinateSpace(({ context: ctx, horizontalPixelRatio, verticalPixelRatio }) => {
-            //         ctx.strokeStyle = this._private__lineColor();
-            //         ctx.fillStyle = this._private__lineColor();
-            //         const tickWidth = Math.max(1, Math.floor(horizontalPixelRatio));
-            //         const tickOffset = Math.floor(horizontalPixelRatio * 0.5);
-            //         ctx.beginPath();
-            //         const tickLen = Math.round(rendererOptions._internal_tickLength * verticalPixelRatio);
-            //         for (let index = tickMarks.length; index--;) {
-            //             const x = Math.round(tickMarks[index].coord * horizontalPixelRatio);
-            //             ctx.rect(x - tickOffset, 0, tickWidth, tickLen);
-            //         }
-            //         ctx.fill();
-            //     });
-            // }
-        
+            if (options.borderVisible && options.ticksVisible) {
+                target.useBitmapCoordinateSpace(({ context: ctx, horizontalPixelRatio, verticalPixelRatio }) => {
+                    ctx.strokeStyle = this._private__lineColor();
+                    ctx.fillStyle = this._private__lineColor();
+                    const tickWidth = Math.max(1, Math.floor(horizontalPixelRatio));
+                    const tickOffset = Math.floor(horizontalPixelRatio * 0.5);
+                    ctx.beginPath();
+                    const tickLen = Math.round(rendererOptions._internal_tickLength * verticalPixelRatio);
+                    for (let index = tickMarks.length; index--;) {
+                        const x = Math.round(tickMarks[index].coord * horizontalPixelRatio);
+                        ctx.rect(x - tickOffset, 0, tickWidth, tickLen);
+                    }
+                    ctx.fill();
+                });
+            }
             target.useMediaCoordinateSpace(({ context: ctx }) => {
                 const yText = (rendererOptions._internal_borderSize +
                     rendererOptions._internal_tickLength +
@@ -11136,7 +11150,7 @@
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillStyle = this._private__textColor();
-                // ###draw label:base marks
+                // draw base marks
                 ctx.font = this._private__baseFont();
                 for (const tickMark of tickMarks) {
                     if (tickMark.weight < maxWeight) {
@@ -11148,7 +11162,6 @@
                 for (const tickMark of tickMarks) {
                     if (tickMark.weight >= maxWeight) {
                         const coordinate = tickMark.needAlignCoordinate ? this._private__alignTickMarkLabelCoordinate(ctx, tickMark.coord, tickMark.label) : tickMark.coord;
-                        console.log("#yText ", yText);
                         ctx.fillText(tickMark.label, coordinate, yText);
                     }
                 }
@@ -11187,6 +11200,7 @@
             return makeFont(this._private__fontSize(), this._private__options.fontFamily);
         }
         _private__baseBoldFont() {
+            // ###weight
             return makeFont(this._private__fontSize(), this._private__options.fontFamily, 'normal');
         }
         _private__getRendererOptions() {
@@ -12116,7 +12130,6 @@
             this._private__sortedTimePoints = [];
         }
         _internal_setSeriesData(series, data) {
-            // ###data 源数据处理
             let needCleanupPoints = this._private__pointDataByTimePoint.size !== 0;
             let isTimeScaleAffected = false;
             // save previous series rows data before it's replaced inside this._setRowsToSeries
@@ -12195,9 +12208,8 @@
             const timeConverter = this._private__horzScaleBehavior.createConverterToInternalObj([data]);
             const time = timeConverter(data.time);
             const lastSeriesTime = this._private__seriesLastTimePoint.get(series);
+
             if (lastSeriesTime !== undefined && this._private__horzScaleBehavior.key(time) < this._private__horzScaleBehavior.key(lastSeriesTime)) {
-                
-                console.log("#1111 ", this._private__horzScaleBehavior.key(time), " 2222 ", this._private__horzScaleBehavior.key(lastSeriesTime));
                 throw new Error(`Cannot update oldest data, last time=${lastSeriesTime}, new time=${time}`);
             }
             let pointDataAtTime = this._private__pointDataByTimePoint.get(this._private__horzScaleBehavior.key(time));
@@ -12220,6 +12232,7 @@
             if (!affectsTimeScale) {
                 return this._private__getUpdateResponse(series, -1, info);
             }
+            // xxxnewPoint
             const newPoint = {
                 timeWeight: 0,
                 time: pointDataAtTime._internal_timePoint,
@@ -12643,14 +12656,13 @@
         if (data.length === 0) {
             return;
         }
-        // ###date
-       // let prevTime = bh.key(data[0].time);
-        // for (let i = 1; i < data.length; ++i) {
-        //     const currentTime = bh.key(data[i].time);
-        //     const checkResult = allowDuplicates ? prevTime <= currentTime : prevTime < currentTime;
-        //     assert(checkResult, `data must be asc ordered by time, index=${i}, time=${currentTime}, prev time=${prevTime}`);
-        //     prevTime = currentTime;
-        // }
+        let prevTime = bh.key(data[0].time);
+        for (let i = 1; i < data.length; ++i) {
+            const currentTime = bh.key(data[i].time);
+            const checkResult = allowDuplicates ? prevTime <= currentTime : prevTime < currentTime;
+            assert(checkResult, `data must be asc ordered by time, index=${i}, time=${currentTime}, prev time=${prevTime}`);
+            prevTime = currentTime;
+        }
     }
     function checkSeriesValuesType(type, data) {
         data.forEach(getChecker(type));
@@ -13261,7 +13273,6 @@
             return res;
         }
         _private__sendUpdateToChart(update) {
-            // ###update
             const model = this._private__chartWidget._internal_model();
             model._internal_updateTimeScale(update._internal_timeScale._internal_baseIndex, update._internal_timeScale._internal_points, update._internal_timeScale._internal_firstChangedPointIndex);
             update._internal_series.forEach((value, series) => series._internal_setData(value._internal_data, value._internal_info));

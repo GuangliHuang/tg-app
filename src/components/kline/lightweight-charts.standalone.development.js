@@ -1,6 +1,6 @@
 /*!
  * @license
- * TradingView Lightweight Charts™ v4.1.2
+ * TradingView Lightweight Charts™ v4.2.0
  * Copyright (c) 2024 TradingView, Inc.
  * Licensed under Apache License 2.0 https://www.apache.org/licenses/LICENSE-2.0
  */
@@ -161,7 +161,6 @@
         const dashPattern = dashPatterns[style];
         ctx.setLineDash(dashPattern);
     }
-    // ###draw price line
     function drawHorizontalLine(ctx, y, left, right) {
         ctx.beginPath();
         const correction = (ctx.lineWidth % 2) ? 0.5 : 0;
@@ -169,25 +168,26 @@
         ctx.lineTo(right, y + correction);
         ctx.stroke();
     }
-    // function drawVerticalLine(ctx, x, top, bottom) {
-    //     ctx.beginPath();
-    //     const correction = (ctx.lineWidth % 2) ? 0.5 : 0;
-    //     ctx.moveTo(x + correction, top);
-    //     ctx.lineTo(x + correction, bottom);
-    //     ctx.stroke();
-    // }
-    // function strokeInPixel(ctx, drawFunction) {
-    //     ctx.save();
-    //     if (ctx.lineWidth % 2) {
-    //         ctx.translate(0.5, 0.5);
-    //     }
-    //     drawFunction();
-    //     ctx.restore();
-    // }
+    function drawVerticalLine(ctx, x, top, bottom) {
+        ctx.beginPath();
+        const correction = (ctx.lineWidth % 2) ? 0.5 : 0;
+        ctx.moveTo(x + correction, top);
+        ctx.lineTo(x + correction, bottom);
+        ctx.stroke();
+    }
+    function strokeInPixel(ctx, drawFunction) {
+        ctx.save();
+        if (ctx.lineWidth % 2) {
+            ctx.translate(0.5, 0.5);
+        }
+        drawFunction();
+        ctx.restore();
+    }
 
     /**
+     * Checks an assertion. Throws if the assertion is failed.
      *
-     * @param condition - Result of the a1ssertion evaluation
+     * @param condition - Result of the assertion evaluation
      * @param message - Text to include in the exception message
      */
     function assert(condition, message) {
@@ -381,11 +381,11 @@
         return (Math.round(component) || 0);
     }
     function normalizeAlphaComponent(component) {
-        return (!(component <= 0) && !(component > 0) ? 0 :
-            component < 0 ? 0 :
-                component > 1 ? 1 :
-                    // limit the precision of all numbers to at most 4 digits in fractional part
-                    Math.round(component * 10000) / 10000);
+        if (component <= 0 || component > 1) {
+            return Math.min(Math.max(component, 0), 1);
+        }
+        // limit the precision of all numbers to at most 4 digits in fractional part
+        return Math.round(component * 10000) / 10000;
     }
     /**
      * @example
@@ -418,7 +418,7 @@
      * @example
      * rgba(255,234,245,0.1)
      */
-    const rgbaRe = /^rgba\(\s*(-?\d{1,10})\s*,\s*(-?\d{1,10})\s*,\s*(-?\d{1,10})\s*,\s*(-?[\d]{0,10}(?:\.\d+)?)\s*\)$/;
+    const rgbaRe = /^rgba\(\s*(-?\d{1,10})\s*,\s*(-?\d{1,10})\s*,\s*(-?\d{1,10})\s*,\s*(-?\d*\.?\d+)\s*\)$/;
     function colorStringToRgba(colorString) {
         colorString = colorString.toLowerCase();
         // eslint-disable-next-line no-restricted-syntax
@@ -485,6 +485,9 @@
             _internal_background: `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`,
             _internal_foreground: rgbaToGrayscale(rgb) > 160 ? 'black' : 'white',
         };
+    }
+    function colorStringToGrayscale(backgroundColor) {
+        return rgbaToGrayscale(colorStringToRgba(backgroundColor));
     }
     function gradientColorAtPercent(topColor, bottomColor, percent) {
         const [topR, topG, topB, topA] = colorStringToRgba(topColor);
@@ -697,17 +700,13 @@
         }
     }
 
-    class MediaCoordinatesPaneRenderer {
+    class BitmapCoordinatesPaneRenderer {
         _internal_draw(target, isHovered, hitTestData) {
-            target.useMediaCoordinateSpace((scope) => this._internal__drawImpl(scope, isHovered, hitTestData));
+            target.useBitmapCoordinateSpace((scope) => this._internal__drawImpl(scope, isHovered, hitTestData));
         }
-        _internal_drawBackground(target, isHovered, hitTestData) {
-            target.useMediaCoordinateSpace((scope) => this._internal__drawBackgroundImpl(scope, isHovered, hitTestData));
-        }
-        _internal__drawBackgroundImpl(renderingScope, isHovered, hitTestData) { }
     }
 
-    class PaneRendererMarks extends MediaCoordinatesPaneRenderer {
+    class PaneRendererMarks extends BitmapCoordinatesPaneRenderer {
         constructor() {
             super(...arguments);
             this._internal__data = null;
@@ -715,19 +714,23 @@
         _internal_setData(data) {
             this._internal__data = data;
         }
-        _internal__drawImpl({ context: ctx }) {
-            return; //#####
+        _internal__drawImpl({ context: ctx, horizontalPixelRatio, verticalPixelRatio }) {
             if (this._internal__data === null || this._internal__data._internal_visibleRange === null) {
                 return;
             }
             const visibleRange = this._internal__data._internal_visibleRange;
             const data = this._internal__data;
-            const draw = (radius) => {
+            const tickWidth = Math.max(1, Math.floor(horizontalPixelRatio));
+            const correction = (tickWidth % 2) / 2;
+            const draw = (radiusMedia) => {
                 ctx.beginPath();
                 for (let i = visibleRange.to - 1; i >= visibleRange.from; --i) {
                     const point = data._internal_items[i];
-                    ctx.moveTo(point._internal_x, point._internal_y);
-                    ctx.arc(point._internal_x, point._internal_y, radius, 0, Math.PI * 2);
+                    const centerX = Math.round(point._internal_x * horizontalPixelRatio) + correction; // correct x coordinate only
+                    const centerY = point._internal_y * verticalPixelRatio;
+                    const radius = radiusMedia * verticalPixelRatio + correction;
+                    ctx.moveTo(centerX, centerY);
+                    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
                 }
                 ctx.fill();
             };
@@ -810,12 +813,6 @@
                 data._internal_items[0]._internal_x = timeScale._internal_indexToCoordinate(timePointIndex);
                 data._internal_visibleRange = rangeForSinglePoint;
             });
-        }
-    }
-
-    class BitmapCoordinatesPaneRenderer {
-        _internal_draw(target, isHovered, hitTestData) {
-            target.useBitmapCoordinateSpace((scope) => this._internal__drawImpl(scope, isHovered, hitTestData));
         }
     }
 
@@ -963,6 +960,13 @@
          * be able to switch to the native version soon.
          */
         ctx.beginPath();
+        if (ctx.roundRect) {
+            ctx.roundRect(x, y, w, h, radii);
+            return;
+        }
+        /*
+         * Deprecate the rest in v5.
+         */
         ctx.lineTo(x + w - radii[1], y);
         if (radii[1] !== 0) {
             ctx.arcTo(x + w, y, x + w, y + radii[1], radii[1]);
@@ -980,28 +984,32 @@
             ctx.arcTo(x, y, x + radii[0], y, radii[0]);
         }
     }
+    /**
+     * Draws a rounded rect with a border.
+     *
+     * This function assumes that the colors will be solid, without
+     * any alpha. (This allows us to fix a rendering artefact.)
+     *
+     * @param outerBorderRadius - The radius of the border (outer edge)
+     */
     // eslint-disable-next-line max-params
-    function drawRoundRectWithInnerBorder(ctx, left, top, width, height, backgroundColor, borderWidth = 0, borderRadius = [0, 0, 0, 0], borderColor = '') {
+    function drawRoundRectWithBorder(ctx, left, top, width, height, backgroundColor, borderWidth = 0, outerBorderRadius = [0, 0, 0, 0], borderColor = '') {
         ctx.save();
         if (!borderWidth || !borderColor || borderColor === backgroundColor) {
-            drawRoundRect(ctx, left, top, width, height, borderRadius);
+            drawRoundRect(ctx, left, top, width, height, outerBorderRadius);
             ctx.fillStyle = backgroundColor;
             ctx.fill();
             ctx.restore();
             return;
         }
         const halfBorderWidth = borderWidth / 2;
-        // Draw body
+        const radii = changeBorderRadius(outerBorderRadius, -halfBorderWidth);
+        drawRoundRect(ctx, left + halfBorderWidth, top + halfBorderWidth, width - borderWidth, height - borderWidth, radii);
         if (backgroundColor !== 'transparent') {
-            const innerRadii = changeBorderRadius(borderRadius, -borderWidth);
-            drawRoundRect(ctx, left + borderWidth, top + borderWidth, width - borderWidth * 2, height - borderWidth * 2, innerRadii);
             ctx.fillStyle = backgroundColor;
             ctx.fill();
         }
-        // Draw border
         if (borderColor !== 'transparent') {
-            const outerRadii = changeBorderRadius(borderRadius, -halfBorderWidth);
-            drawRoundRect(ctx, left + halfBorderWidth, top + halfBorderWidth, width - borderWidth, height - borderWidth, outerRadii);
             ctx.lineWidth = borderWidth;
             ctx.strokeStyle = borderColor;
             ctx.closePath();
@@ -1047,11 +1055,15 @@
                 const geom = this._private__calculateGeometry(scope, rendererOptions, textWidthCache, align);
                 const gb = geom._internal_bitmap;
                 const drawLabelBody = (labelBackgroundColor, labelBorderColor) => {
+                    /*
+                     labelBackgroundColor (and labelBorderColor) will always be a solid color (no alpha) [see generateContrastColors in color.ts].
+                     Therefore we can draw the rounded label using simplified code (drawRoundRectWithBorder) that doesn't need to ensure the background and the border don't overlap.
+                    */
                     if (geom._internal_alignRight) {
-                        drawRoundRectWithInnerBorder(ctx, gb._internal_xOutside, gb._internal_yTop, gb._internal_totalWidth, gb._internal_totalHeight, labelBackgroundColor, gb._internal_horzBorder, [gb._internal_radius, 0, 0, gb._internal_radius], labelBorderColor);
+                        drawRoundRectWithBorder(ctx, gb._internal_xOutside, gb._internal_yTop, gb._internal_totalWidth, gb._internal_totalHeight, labelBackgroundColor, gb._internal_horzBorder, [gb._internal_radius, 0, 0, gb._internal_radius], labelBorderColor);
                     }
                     else {
-                        drawRoundRectWithInnerBorder(ctx, gb._internal_xInside, gb._internal_yTop, gb._internal_totalWidth, gb._internal_totalHeight, labelBackgroundColor, gb._internal_horzBorder, [0, gb._internal_radius, gb._internal_radius, 0], labelBorderColor);
+                        drawRoundRectWithBorder(ctx, gb._internal_xInside, gb._internal_yTop, gb._internal_totalWidth, gb._internal_totalHeight, labelBackgroundColor, gb._internal_horzBorder, [0, gb._internal_radius, gb._internal_radius, 0], labelBorderColor);
                     }
                 };
                 // draw border
@@ -1072,7 +1084,6 @@
                 return geom;
             });
             target.useMediaCoordinateSpace(({ context: ctx }) => {
-                return;
                 const gm = geometry._internal_media;
                 ctx.font = rendererOptions._internal_font;
                 ctx.textAlign = geometry._internal_alignRight ? 'right' : 'left';
@@ -1288,10 +1299,82 @@
             this._private__data = null;
         }
         _internal_setData(data) {
-           //  this._private__data = data;
+            this._private__data = data;
         }
         _internal_draw(target, rendererOptions) {
-           
+            if (this._private__data === null || this._private__data._internal_visible === false || this._private__data._internal_text.length === 0) {
+                return;
+            }
+            const textWidth = target.useMediaCoordinateSpace(({ context: ctx }) => {
+                ctx.font = rendererOptions._internal_font;
+                return Math.round(rendererOptions._internal_widthCache._internal_measureText(ctx, ensureNotNull(this._private__data)._internal_text, optimizationReplacementRe));
+            });
+            if (textWidth <= 0) {
+                return;
+            }
+            const horzMargin = rendererOptions._internal_paddingHorizontal;
+            const labelWidth = textWidth + 2 * horzMargin;
+            const labelWidthHalf = labelWidth / 2;
+            const timeScaleWidth = this._private__data._internal_width;
+            let coordinate = this._private__data._internal_coordinate;
+            let x1 = Math.floor(coordinate - labelWidthHalf) + 0.5;
+            if (x1 < 0) {
+                coordinate = coordinate + Math.abs(0 - x1);
+                x1 = Math.floor(coordinate - labelWidthHalf) + 0.5;
+            }
+            else if (x1 + labelWidth > timeScaleWidth) {
+                coordinate = coordinate - Math.abs(timeScaleWidth - (x1 + labelWidth));
+                x1 = Math.floor(coordinate - labelWidthHalf) + 0.5;
+            }
+            const x2 = x1 + labelWidth;
+            const y1 = 0;
+            const y2 = Math.ceil(y1 +
+                rendererOptions._internal_borderSize +
+                rendererOptions._internal_tickLength +
+                rendererOptions._internal_paddingTop +
+                rendererOptions._internal_fontSize +
+                rendererOptions._internal_paddingBottom);
+            target.useBitmapCoordinateSpace(({ context: ctx, horizontalPixelRatio, verticalPixelRatio }) => {
+                const data = ensureNotNull(this._private__data);
+                ctx.fillStyle = data._internal_background;
+                const x1scaled = Math.round(x1 * horizontalPixelRatio);
+                const y1scaled = Math.round(y1 * verticalPixelRatio);
+                const x2scaled = Math.round(x2 * horizontalPixelRatio);
+                const y2scaled = Math.round(y2 * verticalPixelRatio);
+                const radiusScaled = Math.round(radius$1 * horizontalPixelRatio);
+                ctx.beginPath();
+                ctx.moveTo(x1scaled, y1scaled);
+                ctx.lineTo(x1scaled, y2scaled - radiusScaled);
+                ctx.arcTo(x1scaled, y2scaled, x1scaled + radiusScaled, y2scaled, radiusScaled);
+                ctx.lineTo(x2scaled - radiusScaled, y2scaled);
+                ctx.arcTo(x2scaled, y2scaled, x2scaled, y2scaled - radiusScaled, radiusScaled);
+                ctx.lineTo(x2scaled, y1scaled);
+                ctx.fill();
+                if (data._internal_tickVisible) {
+                    const tickX = Math.round(data._internal_coordinate * horizontalPixelRatio);
+                    const tickTop = y1scaled;
+                    const tickBottom = Math.round((tickTop + rendererOptions._internal_tickLength) * verticalPixelRatio);
+                    ctx.fillStyle = data._internal_color;
+                    const tickWidth = Math.max(1, Math.floor(horizontalPixelRatio));
+                    const tickOffset = Math.floor(horizontalPixelRatio * 0.5);
+                    ctx.fillRect(tickX - tickOffset, tickTop, tickWidth, tickBottom - tickTop);
+                }
+            });
+            target.useMediaCoordinateSpace(({ context: ctx }) => {
+                const data = ensureNotNull(this._private__data);
+                const yText = y1 +
+                    rendererOptions._internal_borderSize +
+                    rendererOptions._internal_tickLength +
+                    rendererOptions._internal_paddingTop +
+                    rendererOptions._internal_fontSize / 2;
+                ctx.font = rendererOptions._internal_font;
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = data._internal_color;
+                const textYCorrection = rendererOptions._internal_widthCache._internal_yMidCorrection(ctx, 'Apr0');
+                ctx.translate(x1 + horzMargin, yText + textYCorrection);
+                ctx.fillText(data._internal_text, 0, 0);
+            });
         }
     }
 
@@ -1827,7 +1910,6 @@
     }
 
     // eslint-disable-next-line max-params, complexity
-    // ###draw line
     function walkLine(renderingScope, items, lineType, visibleRange, barWidth, 
     // the values returned by styleGetter are compared using the operator !==,
     // so if styleGetter returns objects, then styleGetter should return the same object for equal styles
@@ -2036,7 +2118,6 @@
     // the values returned by styleGetter are compared using the operator !==,
     // so if styleGetter returns objects, then styleGetter should return the same object for equal styles
     styleGetter) {
-        return; //#########
         const { horizontalPixelRatio, verticalPixelRatio, context } = renderingScope;
         let prevStyle = null;
         const tickWidth = Math.max(1, Math.floor(horizontalPixelRatio));
@@ -2091,8 +2172,6 @@
             ctx.lineJoin = 'round';
             const styleGetter = this._internal__strokeStyle.bind(this);
             if (lineType !== undefined) {
-                //### draw line
-                console.log("#123 draw line barWidth", barWidth);
                 walkLine(renderingScope, items, lineType, visibleRange, barWidth, styleGetter, finishStyledArea);
             }
             if (pointMarkersRadius) {
@@ -2435,7 +2514,7 @@
             this._private__fillCache = new GradientStyleCache();
         }
         _internal__fillStyle(renderingScope, item) {
-            // eslint-disable-next-line @typescript-eslint/no-non-null-axssertion
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
             const data = this._internal__data;
             return this._private__fillCache._internal_get(renderingScope, {
                 _internal_topColor1: item._internal_topFillColor1,
@@ -3187,8 +3266,7 @@
                 break;
             }
         }
-        // ###date
-        // assert(currentStageData !== undefined, 'Last price animation internal logic error');
+        assert(currentStageData !== undefined, 'Last price animation internal logic error');
         const subStage = (globalStage - currentStageData._internal_start) / (currentStageData._internal_end - currentStageData._internal_start);
         return {
             _internal_fillColor: color(lineColor, subStage, currentStageData._internal_startFillAlpha, currentStageData._internal_endFillAlpha),
@@ -3272,7 +3350,7 @@
                 x: timeScale._internal_indexToCoordinate(lastValue._internal_index),
                 y: this._private__series._internal_priceScale()._internal_priceToCoordinate(lastValue._internal_price, firstValue._internal_value),
             };
-            const seriesLineColor = this._private__series._private__options.priceLineColor; // ###: last animal color
+            const seriesLineColor = lastValue._internal_color;
             const seriesLineWidth = this._private__series._internal_options().lineWidth;
             const data = animationData(this._private__duration(), seriesLineColor);
             this._private__renderer._internal_setData({
@@ -3319,13 +3397,22 @@
     function shapeMargin(barSpacing) {
         return Math.max(size$1(barSpacing, 0.1), 3 /* Constants.MinShapeMargin */);
     }
+    function calculateAdjustedMargin(margin, hasSide, hasInBar) {
+        if (hasSide) {
+            return margin;
+        }
+        else if (hasInBar) {
+            return Math.ceil(margin / 2);
+        }
+        return 0;
+    }
 
-    function drawSquare(ctx, centerX, centerY, size) {
+    function drawSquare(ctx, coords, size) {
         const squareSize = shapeSize('square', size);
-        const halfSize = (squareSize - 1) / 2;
-        const left = centerX - halfSize;
-        const top = centerY - halfSize;
-        ctx.fillRect(left, top, squareSize, squareSize);
+        const halfSize = ((squareSize - 1) * coords._internal_pixelRatio) / 2;
+        const left = coords._internal_x - halfSize;
+        const top = coords._internal_y - halfSize;
+        ctx.fillRect(left, top, squareSize * coords._internal_pixelRatio, squareSize * coords._internal_pixelRatio);
     }
     function hitTestSquare(centerX, centerY, size, x, y) {
         const squareSize = shapeSize('square', size);
@@ -3336,30 +3423,29 @@
             y >= top && y <= top + squareSize;
     }
 
-    function drawArrow(up, ctx, centerX, centerY, size) {
-        return; //#######
+    function drawArrow(up, ctx, coords, size) {
         const arrowSize = shapeSize('arrowUp', size);
-        const halfArrowSize = (arrowSize - 1) / 2;
+        const halfArrowSize = ((arrowSize - 1) / 2) * coords._internal_pixelRatio;
         const baseSize = ceiledOdd(size / 2);
-        const halfBaseSize = (baseSize - 1) / 2;
+        const halfBaseSize = ((baseSize - 1) / 2) * coords._internal_pixelRatio;
         ctx.beginPath();
         if (up) {
-            ctx.moveTo(centerX - halfArrowSize, centerY);
-            ctx.lineTo(centerX, centerY - halfArrowSize);
-            ctx.lineTo(centerX + halfArrowSize, centerY);
-            ctx.lineTo(centerX + halfBaseSize, centerY);
-            ctx.lineTo(centerX + halfBaseSize, centerY + halfArrowSize);
-            ctx.lineTo(centerX - halfBaseSize, centerY + halfArrowSize);
-            ctx.lineTo(centerX - halfBaseSize, centerY);
+            ctx.moveTo(coords._internal_x - halfArrowSize, coords._internal_y);
+            ctx.lineTo(coords._internal_x, coords._internal_y - halfArrowSize);
+            ctx.lineTo(coords._internal_x + halfArrowSize, coords._internal_y);
+            ctx.lineTo(coords._internal_x + halfBaseSize, coords._internal_y);
+            ctx.lineTo(coords._internal_x + halfBaseSize, coords._internal_y + halfArrowSize);
+            ctx.lineTo(coords._internal_x - halfBaseSize, coords._internal_y + halfArrowSize);
+            ctx.lineTo(coords._internal_x - halfBaseSize, coords._internal_y);
         }
         else {
-            ctx.moveTo(centerX - halfArrowSize, centerY);
-            ctx.lineTo(centerX, centerY + halfArrowSize);
-            ctx.lineTo(centerX + halfArrowSize, centerY);
-            ctx.lineTo(centerX + halfBaseSize, centerY);
-            ctx.lineTo(centerX + halfBaseSize, centerY - halfArrowSize);
-            ctx.lineTo(centerX - halfBaseSize, centerY - halfArrowSize);
-            ctx.lineTo(centerX - halfBaseSize, centerY);
+            ctx.moveTo(coords._internal_x - halfArrowSize, coords._internal_y);
+            ctx.lineTo(coords._internal_x, coords._internal_y + halfArrowSize);
+            ctx.lineTo(coords._internal_x + halfArrowSize, coords._internal_y);
+            ctx.lineTo(coords._internal_x + halfBaseSize, coords._internal_y);
+            ctx.lineTo(coords._internal_x + halfBaseSize, coords._internal_y - halfArrowSize);
+            ctx.lineTo(coords._internal_x - halfBaseSize, coords._internal_y - halfArrowSize);
+            ctx.lineTo(coords._internal_x - halfBaseSize, coords._internal_y);
         }
         ctx.fill();
     }
@@ -3368,11 +3454,11 @@
         return hitTestSquare(centerX, centerY, size, x, y);
     }
 
-    function drawCircle(ctx, centerX, centerY, size) {
+    function drawCircle(ctx, coords, size) {
         const circleSize = shapeSize('circle', size);
         const halfSize = (circleSize - 1) / 2;
         ctx.beginPath();
-        ctx.arc(centerX, centerY, halfSize, 0, 2 * Math.PI, false);
+        ctx.arc(coords._internal_x, coords._internal_y, halfSize * coords._internal_pixelRatio, 0, 2 * Math.PI, false);
         ctx.fill();
     }
     function hitTestCircle(centerX, centerY, size, x, y) {
@@ -3384,8 +3470,11 @@
         return dist <= tolerance;
     }
 
-    function drawText(ctx, text, x, y) {
-        // ctx.fillText(text, x, y);
+    function drawText(ctx, text, x, y, horizontalPixelRatio, verticalPixelRatio) {
+        ctx.save();
+        ctx.scale(horizontalPixelRatio, verticalPixelRatio);
+        ctx.fillText(text, x, y);
+        ctx.restore();
     }
     function hitTestText(textX, textY, textWidth, textHeight, x, y) {
         const halfHeight = textHeight / 2;
@@ -3393,7 +3482,7 @@
             y >= textY - halfHeight && y <= textY + halfHeight;
     }
 
-    class SeriesMarkersRenderer extends MediaCoordinatesPaneRenderer {
+    class SeriesMarkersRenderer extends BitmapCoordinatesPaneRenderer {
         constructor() {
             super(...arguments);
             this._private__data = null;
@@ -3428,7 +3517,7 @@
             }
             return null;
         }
-        _internal__drawImpl({ context: ctx }, isHovered, hitTestData) {
+        _internal__drawImpl({ context: ctx, horizontalPixelRatio, verticalPixelRatio }, isHovered, hitTestData) {
             if (this._private__data === null || this._private__data._internal_visibleRange === null) {
                 return;
             }
@@ -3441,33 +3530,42 @@
                     item._internal_text._internal_height = this._private__fontSize;
                     item._internal_text._internal_x = item._internal_x - item._internal_text._internal_width / 2;
                 }
-                drawItem(item, ctx);
+                drawItem(item, ctx, horizontalPixelRatio, verticalPixelRatio);
             }
         }
     }
-    function drawItem(item, ctx) {
+    function bitmapShapeItemCoordinates(item, horizontalPixelRatio, verticalPixelRatio) {
+        const tickWidth = Math.max(1, Math.floor(horizontalPixelRatio));
+        const correction = (tickWidth % 2) / 2;
+        return {
+            _internal_x: Math.round(item._internal_x * horizontalPixelRatio) + correction,
+            _internal_y: item._internal_y * verticalPixelRatio,
+            _internal_pixelRatio: horizontalPixelRatio,
+        };
+    }
+    function drawItem(item, ctx, horizontalPixelRatio, verticalPixelRatio) {
         ctx.fillStyle = item._internal_color;
         if (item._internal_text !== undefined) {
-            drawText(ctx, item._internal_text._internal_content, item._internal_text._internal_x, item._internal_text._internal_y);
+            drawText(ctx, item._internal_text._internal_content, item._internal_text._internal_x, item._internal_text._internal_y, horizontalPixelRatio, verticalPixelRatio);
         }
-        drawShape(item, ctx);
+        drawShape(item, ctx, bitmapShapeItemCoordinates(item, horizontalPixelRatio, verticalPixelRatio));
     }
-    function drawShape(item, ctx) {
+    function drawShape(item, ctx, coordinates) {
         if (item._internal_size === 0) {
             return;
         }
         switch (item._internal_shape) {
             case 'arrowDown':
-                drawArrow(false, ctx, item._internal_x, item._internal_y, item._internal_size);
+                drawArrow(false, ctx, coordinates, item._internal_size);
                 return;
             case 'arrowUp':
-                drawArrow(true, ctx, item._internal_x, item._internal_y, item._internal_size);
+                drawArrow(true, ctx, coordinates, item._internal_size);
                 return;
             case 'circle':
-                drawCircle(ctx, item._internal_x, item._internal_y, item._internal_size);
+                drawCircle(ctx, coordinates, item._internal_size);
                 return;
             case 'square':
-                drawSquare(ctx, item._internal_x, item._internal_y, item._internal_size);
+                drawSquare(ctx, coordinates, item._internal_size);
                 return;
         }
         ensureNever(item._internal_shape);
@@ -3538,6 +3636,7 @@
             this._private__dataInvalidated = true;
             this._private__autoScaleMarginsInvalidated = true;
             this._private__autoScaleMargins = null;
+            this._private__markersPositions = null;
             this._private__renderer = new SeriesMarkersRenderer();
             this._private__series = series;
             this._private__model = model;
@@ -3551,6 +3650,7 @@
             this._private__autoScaleMarginsInvalidated = true;
             if (updateType === 'data') {
                 this._private__dataInvalidated = true;
+                this._private__markersPositions = null;
             }
         }
         _internal_renderer(addAnchors) {
@@ -3570,10 +3670,11 @@
                 if (this._private__series._internal_indexedMarkers().length > 0) {
                     const barSpacing = this._private__model._internal_timeScale()._internal_barSpacing();
                     const shapeMargin$1 = shapeMargin(barSpacing);
-                    const marginsAboveAndBelow = calculateShapeHeight(barSpacing) * 1.5 + shapeMargin$1 * 2;
+                    const marginValue = calculateShapeHeight(barSpacing) * 1.5 + shapeMargin$1 * 2;
+                    const positions = this._internal__getMarkerPositions();
                     this._private__autoScaleMargins = {
-                        above: marginsAboveAndBelow,
-                        below: marginsAboveAndBelow,
+                        above: calculateAdjustedMargin(marginValue, positions.aboveBar, positions.inBar),
+                        below: calculateAdjustedMargin(marginValue, positions.belowBar, positions.inBar),
                     };
                 }
                 else {
@@ -3582,6 +3683,21 @@
                 this._private__autoScaleMarginsInvalidated = false;
             }
             return this._private__autoScaleMargins;
+        }
+        _internal__getMarkerPositions() {
+            if (this._private__markersPositions === null) {
+                this._private__markersPositions = this._private__series._internal_indexedMarkers().reduce((acc, marker) => {
+                    if (!acc[marker.position]) {
+                        acc[marker.position] = true;
+                    }
+                    return acc;
+                }, {
+                    inBar: false,
+                    aboveBar: false,
+                    belowBar: false,
+                });
+            }
+            return this._private__markersPositions;
         }
         _internal__makeValid() {
             const priceScale = this._private__series._internal_priceScale();
@@ -4678,7 +4794,7 @@
                 }, 0);
             }
             animationPaneView._internal_invalidateStage();
-            res.push(animationPaneView);
+            res.unshift(animationPaneView);
             return res;
         }
         _internal_paneViews() {
@@ -5038,7 +5154,6 @@
             this._private__data = data;
         }
         _internal__drawImpl({ context: ctx, bitmapSize, horizontalPixelRatio, verticalPixelRatio }) {
-            return; //########
             if (this._private__data === null) {
                 return;
             }
@@ -5271,7 +5386,7 @@
         }
     }
 
-    const TICK_DENSITY = 4.25; // 2.5; ###: vertical tick density
+    const TICK_DENSITY = 2.5;
     class PriceTickMarkBuilder {
         constructor(priceScale, base, coordinateToLogicalFunc, logicalToCoordinateFunc) {
             this._private__marks = [];
@@ -5974,7 +6089,7 @@
                         const margins = autoScaleInfo._internal_margins();
                         if (margins !== null) {
                             marginAbove = Math.max(marginAbove, margins.above);
-                            marginBelow = Math.max(marginAbove, margins.below);
+                            marginBelow = Math.max(marginBelow, margins.below);
                         }
                     }
                 }
@@ -6429,7 +6544,7 @@
         }
         return first._internal_equals(second);
     }
-    // ###x0 time setting. set weight?
+
     class TickMarks {
         constructor() {
             this._private__marksByWeight = new Map();
@@ -6441,7 +6556,6 @@
             this._private__cache = null;
         }
         _internal_setTimeScalePoints(newPoints, firstChangedPointIndex) {
-            console.log("#newPoints ", newPoints);
             this._private__removeMarksSinceIndex(firstChangedPointIndex);
             this._private__cache = null;
             for (let index = firstChangedPointIndex; index < newPoints.length; ++index) {
@@ -6456,13 +6570,11 @@
                     time: point.time,
                     weight: point.timeWeight,
                     originalTime: point.originalTime,
-                    format: new Date(point.originalTime).toLocaleTimeString()
                 });
             }
         }
         _internal_build(spacing, maxWidth) {
             const maxIndexesPerMark = Math.ceil(maxWidth / spacing);
-            console.log("#build ", spacing, maxWidth, maxIndexesPerMark, this._private__cache);
             if (this._private__cache === null || this._private__cache._internal_maxIndexesPerMark !== maxIndexesPerMark) {
                 this._private__cache = {
                     _internal_marks: this._private__buildMarksImpl(maxIndexesPerMark),
@@ -6489,7 +6601,6 @@
                 this._private__marksByWeight.delete(weight);
             }
         }
-        // ###xbuild
         _private__buildMarksImpl(maxIndexesPerMark) {
             let marks = [];
             for (const weight of Array.from(this._private__marksByWeight.keys()).sort((a, b) => b - a)) {
@@ -6505,18 +6616,11 @@
                 const currentWeightLength = currentWeight.length;
                 let rightIndex = Infinity;
                 let leftIndex = -Infinity;
-                currentWeight.forEach((item, index) => {
-                    item.f = new Date(item.originalTime).toLocaleTimeString()
-                });
-
-                console.log("maxIndexesPerMark ", maxIndexesPerMark, " ", JSON.parse(JSON.stringify(currentWeight)));
-
                 for (let i = 0; i < currentWeightLength; i++) {
                     const mark = currentWeight[i];
                     const currentIndex = mark.index;
                     // Determine indexes with which current index will be compared
                     // All marks to the right is moved to new array
-                    console.log("@1", "#prevMarksPointer ", prevMarksPointer, " #prevMarksLength", prevMarksLength, " mark:", mark);
                     while (prevMarksPointer < prevMarksLength) {
                         const lastMark = prevMarks[prevMarksPointer];
                         const lastIndex = lastMark.index;
@@ -6525,7 +6629,6 @@
                             marks.push(lastMark);
                             leftIndex = lastIndex;
                             rightIndex = Infinity;
-                            console.log("@2 #lastIndex ", lastIndex, " #currentIndex", currentIndex);
                         }
                         else {
                             rightIndex = lastIndex;
@@ -6535,7 +6638,6 @@
                     if (rightIndex - currentIndex >= maxIndexesPerMark && currentIndex - leftIndex >= maxIndexesPerMark) {
                         // TickMark fits. Place it into new array
                         marks.push(mark);
-                        console.log("@3#rightIndex ", rightIndex, " #currentIndex", currentIndex, " leftIndex", leftIndex, mark);
                         leftIndex = currentIndex;
                     }
                     else {
@@ -6549,32 +6651,6 @@
                     marks.push(prevMarks[prevMarksPointer]);
                 }
             }
-            marks.forEach((item, index) => {
-                let s = new Date(item.originalTime).getSeconds() % 10;
-                if (s >= 3 && s <= 7) {
-                    item.originalTime = item.originalTime - (s - 5) * 1000;
-                } else if (s >= 8) {
-                    item.originalTime = item.originalTime + (10 - s) * 1000;
-                } else {
-                    item.originalTime = item.originalTime - s * 1000;
-                }
-                // if (index === 0) {
-                //     let s = new Date(item.originalTime).getSeconds() % 10;
-                //     if (s >= 3 && s <= 7) {
-                //        item.originalTime = item.originalTime - (s - 5) * 1000;
-                //     } else if (s >= 8) {
-                //        item.originalTime = item.originalTime + (10 - s) * 1000;
-                //     } else {
-                //        item.originalTime = item.originalTime - s * 1000;
-                //     }
-                //     console.log(item.originalTime, " *** ", s);
-                // } else {
-                //     item.originalTime = marks[index - 1].originalTime + 1000 * 5;
-                // }
-
-                // item.format = new Date(item.originalTime).toLocaleTimeString();
-            });
-            console.log("@3 - 4#marks ", marks);
             return marks;
         }
     }
@@ -6601,7 +6677,6 @@
     function markWithGreaterWeight(a, b) {
         return a.weight > b.weight ? a : b;
     }
-    // ###timeScale
     class TimeScale {
         constructor(model, options, localizationOptions, horzScaleBehavior) {
             this._private__width = 0;
@@ -6759,7 +6834,6 @@
                     const delta = oldWidth - newWidth;
                     // reduce  _rightOffset means move right
                     // we could move more than required - this will be fixed by _correctOffset()
-                    console.log(this._private__barSpacing, "###barspace delta", delta, " oldWidth", oldWidth, " newWidth", newWidth);
                     this._private__rightOffset -= Math.round(delta / this._private__barSpacing) + 1;
                     this._private__visibleRangeInvalidated = true;
                 }
@@ -6812,7 +6886,6 @@
             return this._private__rightOffset;
         }
         // eslint-disable-next-line complexity
-        // ###xx
         _internal_marks() {
             if (this._internal_isEmpty()) {
                 return null;
@@ -6830,7 +6903,6 @@
             const firstBar = Math.max(visibleBars._internal_left(), visibleBars._internal_left() - indexPerLabel);
             const lastBar = Math.max(visibleBars._internal_right(), visibleBars._internal_right() - indexPerLabel);
             const items = this._private__tickMarks._internal_build(spacing, maxLabelWidth);
-            console.log("#items ", items)
             // according to indexPerLabel value this value means "earliest index which _might be_ used as the second label on time scale"
             const earliestIndexOfSecondLabel = this._private__firstIndex() + indexPerLabel;
             // according to indexPerLabel value this value means "earliest index which _might be_ used as the second last label on time scale"
@@ -6849,7 +6921,6 @@
                     label.coord = this._internal_indexToCoordinate(tm.index);
                     label.label = this._private__formatLabel(tm);
                     label.weight = tm.weight;
-                    label.time = tm.originalTime;
                 }
                 else {
                     label = {
@@ -6857,7 +6928,6 @@
                         coord: this._internal_indexToCoordinate(tm.index),
                         label: this._private__formatLabel(tm),
                         weight: tm.weight,
-                        time: tm.originalTime
                     };
                     this._private__labels.push(label);
                 }
@@ -6874,7 +6944,6 @@
             }
             this._private__labels.length = targetIndex;
             this._private__timeMarksCache = this._private__labels;
-            console.log("#labels :", this._private__labels);
             return this._private__labels;
         }
         _internal_restoreDefault() {
@@ -6969,23 +7038,22 @@
             this._internal_scrollToOffsetAnimated(this._private__options.rightOffset);
         }
         _internal_scrollToOffsetAnimated(offset, animationDuration = 400 /* Constants.DefaultAnimationDuration */) {
-            // ###animation
-            // if (!isFinite(offset)) {
-            //     throw new RangeError('offset is required and must be finite number');
-            // }
-            // if (!isFinite(animationDuration) || animationDuration <= 0) {
-            //     throw new RangeError('animationDuration (optional) must be finite positive number');
-            // }
-            // const source = this._private__rightOffset;
-            // const animationStart = performance.now();
-            // this._private__model._internal_setTimeScaleAnimation({
-            //     _internal_finished: (time) => (time - animationStart) / animationDuration >= 1,
-            //     _internal_getPosition: (time) => {
-            //         const animationProgress = (time - animationStart) / animationDuration;
-            //         const finishAnimation = animationProgress >= 1;
-            //         return finishAnimation ? offset : source + (offset - source) * animationProgress;
-            //     },
-            // });
+            if (!isFinite(offset)) {
+                throw new RangeError('offset is required and must be finite number');
+            }
+            if (!isFinite(animationDuration) || animationDuration <= 0) {
+                throw new RangeError('animationDuration (optional) must be finite positive number');
+            }
+            const source = this._private__rightOffset;
+            const animationStart = performance.now();
+            this._private__model._internal_setTimeScaleAnimation({
+                _internal_finished: (time) => (time - animationStart) / animationDuration >= 1,
+                _internal_getPosition: (time) => {
+                    const animationProgress = (time - animationStart) / animationDuration;
+                    const finishAnimation = animationProgress >= 1;
+                    return finishAnimation ? offset : source + (offset - source) * animationProgress;
+                },
+            });
         }
         _internal_update(newPoints, firstChangedPointIndex) {
             this._private__visibleRangeInvalidated = true;
@@ -7088,7 +7156,6 @@
             const rightBorder = this._private__rightOffset + baseIndex;
             const leftBorder = rightBorder - newBarsLength + 1;
             const logicalRange = new RangeImpl(leftBorder, rightBorder);
-            console.log("###spacebar _private__width", this._private__width, " newBarsLength", newBarsLength, " logicalRange", logicalRange);
             this._private__setVisibleRange(new TimeScaleVisibleRange(logicalRange));
         }
         _private__correctBarSpacing() {
@@ -7117,7 +7184,6 @@
         _private__correctOffset() {
             // block scrolling of to future
             const maxRightOffset = this._private__maxRightOffset();
-            console.log("#maxRightOffset ", maxRightOffset);
             if (this._private__rightOffset > maxRightOffset) {
                 this._private__rightOffset = maxRightOffset;
                 this._private__visibleRangeInvalidated = true;
@@ -7141,7 +7207,6 @@
             return firstIndex - baseIndex - 1 + barsEstimation;
         }
         _private__maxRightOffset() {
-            console.log(this._private__width, "###barspace this._private__points.length", this._private__points.length);
             return this._private__options.fixRightEdge
                 ? 0
                 : (this._private__width / this._private__barSpacing) - Math.min(2 /* Constants.MinVisibleBarsCount */, this._private__points.length);
@@ -7213,6 +7278,16 @@
             this._private__correctOffset();
             this._private__correctBarSpacing();
         }
+    }
+
+    class MediaCoordinatesPaneRenderer {
+        _internal_draw(target, isHovered, hitTestData) {
+            target.useMediaCoordinateSpace((scope) => this._internal__drawImpl(scope, isHovered, hitTestData));
+        }
+        _internal_drawBackground(target, isHovered, hitTestData) {
+            target.useMediaCoordinateSpace((scope) => this._internal__drawBackgroundImpl(scope, isHovered, hitTestData));
+        }
+        _internal__drawBackgroundImpl(renderingScope, isHovered, hitTestData) { }
     }
 
     class WatermarkRenderer extends MediaCoordinatesPaneRenderer {
@@ -8099,22 +8174,21 @@
         { _internal_divisor: hours(6), _internal_weight: 32 /* TickMarkWeight.Hour6 */ },
         { _internal_divisor: hours(12), _internal_weight: 33 /* TickMarkWeight.Hour12 */ },
     ];
-    // ###weight
     function weightByTime(currentDate, prevDate) {
-        // if (currentDate.getUTCFullYear() !== prevDate.getUTCFullYear()) {
-        //     return 70 /* TickMarkWeight.Year */;
-        // }
-        // else if (currentDate.getUTCMonth() !== prevDate.getUTCMonth()) {
-        //     return 60 /* TickMarkWeight.Month */;
-        // }
-        // else if (currentDate.getUTCDate() !== prevDate.getUTCDate()) {
-        //     return 50 /* TickMarkWeight.Day */;
-        // }
-        // for (let i = intradayWeightDivisors.length - 1; i >= 0; --i) {
-        //     if (Math.floor(prevDate.getTime() / intradayWeightDivisors[i]._internal_divisor) !== Math.floor(currentDate.getTime() / intradayWeightDivisors[i]._internal_divisor)) {
-        //         return intradayWeightDivisors[i]._internal_weight;
-        //     }
-        // }
+        if (currentDate.getUTCFullYear() !== prevDate.getUTCFullYear()) {
+            return 70 /* TickMarkWeight.Year */;
+        }
+        else if (currentDate.getUTCMonth() !== prevDate.getUTCMonth()) {
+            return 60 /* TickMarkWeight.Month */;
+        }
+        else if (currentDate.getUTCDate() !== prevDate.getUTCDate()) {
+            return 50 /* TickMarkWeight.Day */;
+        }
+        for (let i = intradayWeightDivisors.length - 1; i >= 0; --i) {
+            if (Math.floor(prevDate.getTime() / intradayWeightDivisors[i]._internal_divisor) !== Math.floor(currentDate.getTime() / intradayWeightDivisors[i]._internal_divisor)) {
+                return intradayWeightDivisors[i]._internal_weight;
+            }
+        }
         return 0 /* TickMarkWeight.LessThanSecond */;
     }
     function cast(t) {
@@ -8131,7 +8205,6 @@
             const currentPoint = sortedTimePoints[index];
             const currentDate = new Date(cast(currentPoint.time)._internal_timestamp * 1000);
             if (prevDate !== null) {
-                // ###weight 控制字体加粗
                 currentPoint.timeWeight = weightByTime(currentDate, prevDate);
             }
             totalTimeDiff += cast(currentPoint.time)._internal_timestamp - (prevTime || cast(currentPoint.time)._internal_timestamp);
@@ -8146,51 +8219,47 @@
             sortedTimePoints[0].timeWeight = weightByTime(new Date(cast(sortedTimePoints[0].time)._internal_timestamp * 1000), approxPrevDate);
         }
     }
-    // ###date
+
     function businessDayConverter(time) {
         let businessDay = time;
-        // if (isString(time)) {
-        //     businessDay = stringToBusinessDay(time);
-        // }
-        // if (!isBusinessDay(businessDay)) {
-        //     throw new Error('time must be of type BusinessDay');
-        // }
-        // const date = new Date(Date.UTC(businessDay.year, businessDay.month - 1, businessDay.day, 0, 0, 0, 0));
+        if (isString(time)) {
+            businessDay = stringToBusinessDay(time);
+        }
+        if (!isBusinessDay(businessDay)) {
+            throw new Error('time must be of type BusinessDay');
+        }
+        const date = new Date(Date.UTC(businessDay.year, businessDay.month - 1, businessDay.day, 0, 0, 0, 0));
         return {
-            _internal_timestamp: time, // Math.round(date.getTime() / 1000),
+            _internal_timestamp: Math.round(date.getTime() / 1000),
             _internal_businessDay: businessDay,
         };
     }
-    // ###date
     function timestampConverter(time) {
-        // if (!isUTCTimestamp(time)) {
-        //     throw new Error('time must be of type isUTCTimestamp');
-        // }
+        if (!isUTCTimestamp(time)) {
+            throw new Error('time must be of type isUTCTimestamp');
+        }
         return {
             _internal_timestamp: time,
         };
     }
-    // ###date
     function selectTimeConverter(data) {
-        // if (data.length === 0) {
-        //     return null;
-        // }
-        // if (isBusinessDay(data[0].time) || isString(data[0].time)) {
-        //     return businessDayConverter;
-        // }
+        if (data.length === 0) {
+            return null;
+        }
+        if (isBusinessDay(data[0].time) || isString(data[0].time)) {
+            return businessDayConverter;
+        }
         return timestampConverter;
     }
     const validDateRegex = /^\d\d\d\d-\d\d-\d\d$/;
-    // ###date
     function convertTime(time) {
-        // if (isUTCTimestamp(time)) {
-        //     return timestampConverter(time);
-        // }
-        // if (!isBusinessDay(time)) {
-        //     return businessDayConverter(stringToBusinessDay(time));
-        // }
-        // return businessDayConverter(time);
-        return time;
+        if (isUTCTimestamp(time)) {
+            return timestampConverter(time);
+        }
+        if (!isBusinessDay(time)) {
+            return businessDayConverter(stringToBusinessDay(time));
+        }
+        return businessDayConverter(time);
     }
     function stringToBusinessDay(value) {
         {
@@ -8214,15 +8283,15 @@
             year: d.getUTCFullYear(),
         };
     }
-    // ###date
     function convertStringToBusinessDay(value) {
-        // if (isString(value.time)) {
-        //     value.time = stringToBusinessDay(value.time);
-        // }
+        if (isString(value.time)) {
+            value.time = stringToBusinessDay(value.time);
+        }
     }
     function convertStringsToBusinessDays(data) {
-        // return data.forEach(convertStringToBusinessDay);
+        return data.forEach(convertStringToBusinessDay);
     }
+
     // eslint-disable-next-line complexity
     function weightToTickMarkType(weight, timeVisible, secondsVisible) {
         switch (weight) {
@@ -8266,9 +8335,7 @@
         createConverterToInternalObj(data) {
             return ensureNotNull(selectTimeConverter(data));
         }
-        // ###date
         key(item) {
-            return item;
             // eslint-disable-next-line no-restricted-syntax
             if (typeof item === 'object' && "_internal_timestamp" in item) {
                 return item._internal_timestamp;
@@ -8283,11 +8350,8 @@
                 ? new Date(time._internal_timestamp * 1000).getTime()
                 : new Date(Date.UTC(time._internal_businessDay.year, time._internal_businessDay.month - 1, time._internal_businessDay.day)).getTime();
         }
-        // ###date
         convertHorzItemToInternal(item) {
-            console.log("#item ", item, new Date(item).toLocaleTimeString());
-            return item;
-            // return convertTime(item);
+            return convertTime(item);
         }
         updateFormatter(options) {
             if (!this._private__options) {
@@ -8310,13 +8374,11 @@
             const tp = item;
             return this._private__dateTimeFormatter._internal_format(new Date(tp._internal_timestamp * 1000));
         }
-        // ###x 这个方法禁用后所有时间都会显示不出来
         formatTickmark(tickMark, localizationOptions) {
             const tickMarkType = weightToTickMarkType(tickMark.weight, this._private__options.timeScale.timeVisible, this._private__options.timeScale.secondsVisible);
             const options = this._private__options.timeScale;
             if (options.tickMarkFormatter !== undefined) {
                 const tickMarkString = options.tickMarkFormatter(tickMark.originalTime, tickMarkType, localizationOptions.locale);
-               // tickMarkString的值为时分秒，如：23:30:16
                 if (tickMarkString !== null) {
                     return tickMarkString;
                 }
@@ -8915,6 +8977,74 @@
             const startPosition = ensureNotNull(this._private__animationStartPosition);
             const progress = time - startPosition._internal_time;
             return Math.min(progress, this._private__durationMsecs);
+        }
+    }
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 35 19" width="35" height="19" fill="none"><g fill-rule="evenodd" clip-path="url(#a)" clip-rule="evenodd"><path fill="var(--stroke)" d="M2 0H0v10h6v9h21.4l.5-1.3 6-15 1-2.7H23.7l-.5 1.3-.2.6a5 5 0 0 0-7-.9V0H2Zm20 17h4l5.2-13 .8-2h-7l-1 2.5-.2.5-1.5 3.8-.3.7V17Zm-.8-10a3 3 0 0 0 .7-2.7A3 3 0 1 0 16.8 7h4.4ZM14 7V2H2v6h6v9h4V7h2Z"/><path fill="var(--fill)" d="M14 2H2v6h6v9h6V2Zm12 15h-7l6-15h7l-6 15Zm-7-9a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/></g><defs><clipPath id="a"><path fill="var(--stroke)" d="M0 0h35v19H0z"/></clipPath></defs></svg>`;
+    const css = `a#tv-attr-logo{--fill:#131722;--stroke:#fff;position:absolute;left:10px;bottom:10px;height:19px;width:35px;margin:0;padding:0;border:0;z-index:3;}a#tv-attr-logo[data-dark]{--fill:#D1D4DC;--stroke:#131722;}`;
+    // This widget doesn't support dynamically responding to options changes
+    // because it is expected that the `attributionLogo` option won't be changed
+    // and this saves some bundle size.
+    class AttributionLogoWidget {
+        constructor(container, chart) {
+            this._private__element = undefined;
+            this._private__cssElement = undefined;
+            this._private__theme = undefined;
+            this._private__visible = false;
+            this._private__container = container;
+            this._private__chart = chart;
+            this._private__render();
+        }
+        _internal_update() {
+            this._private__render();
+        }
+        _internal_removeElement() {
+            if (this._private__element) {
+                this._private__container.removeChild(this._private__element);
+            }
+            if (this._private__cssElement) {
+                this._private__container.removeChild(this._private__cssElement);
+            }
+            this._private__element = undefined;
+            this._private__cssElement = undefined;
+        }
+        _private__shouldUpdate() {
+            return this._private__visible !== this._private__shouldBeVisible() || this._private__theme !== this._private__themeToUse();
+        }
+        _private__themeToUse() {
+            return colorStringToGrayscale(this._private__chart._internal_options().layout.textColor) > 160 ? 'dark' : 'light';
+        }
+        _private__shouldBeVisible() {
+            return this._private__chart._internal_options().layout.attributionLogo;
+        }
+        _private__getUTMSource() {
+            const url = new URL(location.href);
+            if (!url.hostname) {
+                // ignore local testing
+                return '';
+            }
+            return '&utm_source=' + url.hostname + url.pathname;
+        }
+        _private__render() {
+            if (!this._private__shouldUpdate()) {
+                return;
+            }
+            this._internal_removeElement();
+            this._private__visible = this._private__shouldBeVisible();
+            if (this._private__visible) {
+                this._private__theme = this._private__themeToUse();
+                this._private__cssElement = document.createElement('style');
+                this._private__cssElement.innerText = css;
+                this._private__element = document.createElement('a');
+                this._private__element.href = `https://www.tradingview.com/?utm_medium=lwc-link&utm_campaign=lwc-chart${this._private__getUTMSource()}`;
+                this._private__element.title = 'Charting by TradingView';
+                this._private__element.id = 'tv-attr-logo';
+                this._private__element.target = '_blank';
+                this._private__element.innerHTML = svg;
+                this._private__element.toggleAttribute('data-dark', this._private__theme === 'dark');
+                this._private__container.appendChild(this._private__cssElement);
+                this._private__container.appendChild(this._private__element);
+            }
         }
     }
 
@@ -9674,6 +9804,49 @@
             return (_d = (_c = source._internal_pricePaneViews) === null || _c === void 0 ? void 0 : _c.call(source, zOrder)) !== null && _d !== void 0 ? _d : [];
         };
     }
+    function recalculateOverlapping(views, direction, scaleHeight, rendererOptions) {
+        if (!views.length) {
+            return;
+        }
+        let currentGroupStart = 0;
+        const center = scaleHeight / 2;
+        const initLabelHeight = views[0]._internal_height(rendererOptions, true);
+        let spaceBeforeCurrentGroup = direction === 1
+            ? center - (views[0]._internal_getFixedCoordinate() - initLabelHeight / 2)
+            : views[0]._internal_getFixedCoordinate() - initLabelHeight / 2 - center;
+        spaceBeforeCurrentGroup = Math.max(0, spaceBeforeCurrentGroup);
+        for (let i = 1; i < views.length; i++) {
+            const view = views[i];
+            const prev = views[i - 1];
+            const height = prev._internal_height(rendererOptions, false);
+            const coordinate = view._internal_getFixedCoordinate();
+            const prevFixedCoordinate = prev._internal_getFixedCoordinate();
+            const overlap = direction === 1
+                ? coordinate > prevFixedCoordinate - height
+                : coordinate < prevFixedCoordinate + height;
+            if (overlap) {
+                const fixedCoordinate = prevFixedCoordinate - height * direction;
+                view._internal_setFixedCoordinate(fixedCoordinate);
+                const edgePoint = fixedCoordinate - direction * height / 2;
+                const outOfViewport = direction === 1 ? edgePoint < 0 : edgePoint > scaleHeight;
+                if (outOfViewport && spaceBeforeCurrentGroup > 0) {
+                    // shift the whole group up or down
+                    const desiredGroupShift = direction === 1 ? -1 - edgePoint : edgePoint - scaleHeight;
+                    const possibleShift = Math.min(desiredGroupShift, spaceBeforeCurrentGroup);
+                    for (let k = currentGroupStart; k < views.length; k++) {
+                        views[k]._internal_setFixedCoordinate(views[k]._internal_getFixedCoordinate() + direction * possibleShift);
+                    }
+                    spaceBeforeCurrentGroup -= possibleShift;
+                }
+            }
+            else {
+                currentGroupStart = i;
+                spaceBeforeCurrentGroup = direction === 1
+                    ? prevFixedCoordinate - height - coordinate
+                    : coordinate - (prevFixedCoordinate + height);
+            }
+        }
+    }
     class PriceAxisWidget {
         constructor(pane, options, rendererOptionsProvider, side) {
             this._private__priceScale = null;
@@ -10024,7 +10197,6 @@
             if (this._private__size === null || this._private__priceScale === null) {
                 return;
             }
-            let center = this._private__size.height / 2;
             const views = [];
             const orderedSources = this._private__priceScale._internal_orderedSources().slice(); // Copy of array
             const pane = this._private__pane;
@@ -10039,8 +10211,6 @@
                     }
                 });
             }
-            // we can use any, but let's use the first source as "center" one
-            const centerSource = this._private__priceScale._internal_dataSources()[0];
             const priceScale = this._private__priceScale;
             const updateForSources = (sources) => {
                 sources.forEach((source) => {
@@ -10052,9 +10222,6 @@
                             views.push(view);
                         }
                     });
-                    if (centerSource === source && sourceViews.length > 0) {
-                        center = sourceViews[0]._internal_coordinate();
-                    }
                 });
             };
             // crosshair individually
@@ -10064,21 +10231,18 @@
             if (!options.alignLabels) {
                 return;
             }
-            this._private__fixLabelOverlap(views, rendererOptions, center);
+            this._private__fixLabelOverlap(views, rendererOptions);
         }
-        _private__fixLabelOverlap(views, rendererOptions, center) {
+        _private__fixLabelOverlap(views, rendererOptions) {
             if (this._private__size === null) {
                 return;
             }
+            const center = this._private__size.height / 2;
             // split into two parts
             const top = views.filter((view) => view._internal_coordinate() <= center);
             const bottom = views.filter((view) => view._internal_coordinate() > center);
             // sort top from center to top
             top.sort((l, r) => r._internal_coordinate() - l._internal_coordinate());
-            // share center label
-            if (top.length && bottom.length) {
-                bottom.push(top[0]);
-            }
             bottom.sort((l, r) => l._internal_coordinate() - r._internal_coordinate());
             for (const view of views) {
                 const halfHeight = Math.floor(view._internal_height(rendererOptions) / 2);
@@ -10090,26 +10254,8 @@
                     view._internal_setFixedCoordinate(this._private__size.height - halfHeight);
                 }
             }
-            for (let i = 1; i < top.length; i++) {
-                const view = top[i];
-                const prev = top[i - 1];
-                const height = prev._internal_height(rendererOptions, false);
-                const coordinate = view._internal_coordinate();
-                const prevFixedCoordinate = prev._internal_getFixedCoordinate();
-                if (coordinate > prevFixedCoordinate - height) {
-                    view._internal_setFixedCoordinate(prevFixedCoordinate - height);
-                }
-            }
-            for (let j = 1; j < bottom.length; j++) {
-                const view = bottom[j];
-                const prev = bottom[j - 1];
-                const height = prev._internal_height(rendererOptions, true);
-                const coordinate = view._internal_coordinate();
-                const prevFixedCoordinate = prev._internal_getFixedCoordinate();
-                if (coordinate < prevFixedCoordinate + height) {
-                    view._internal_setFixedCoordinate(prevFixedCoordinate + height);
-                }
-            }
+            recalculateOverlapping(top, 1, this._private__size.height, rendererOptions);
+            recalculateOverlapping(bottom, -1, this._private__size.height, rendererOptions);
         }
         _private__drawBackLabels(target) {
             if (this._private__size === null) {
@@ -10182,6 +10328,7 @@
             this._private__size = size({ width: 0, height: 0 });
             this._private__leftPriceAxisWidget = null;
             this._private__rightPriceAxisWidget = null;
+            this._private__attributionLogoWidget = null;
             this._private__startScrollingPos = null;
             this._private__isScrolling = false;
             this._private__clicked = new Delegate();
@@ -10252,6 +10399,7 @@
             if (this._private__rightPriceAxisWidget !== null) {
                 this._private__rightPriceAxisWidget._internal_destroy();
             }
+            this._private__attributionLogoWidget = null;
             this._private__topCanvasBinding.unsubscribeSuggestedBitmapSizeChanged(this._private__topCanvasSuggestedBitmapSizeChangedHandler);
             releaseCanvas(this._private__topCanvasBinding.canvasElement);
             this._private__topCanvasBinding.dispose();
@@ -10267,6 +10415,7 @@
             return ensureNotNull(this._private__state);
         }
         _internal_setState(pane) {
+            var _a, _b;
             if (this._private__state !== null) {
                 this._private__state._internal_onDestroyed()._internal_unsubscribeAll(this);
             }
@@ -10275,6 +10424,14 @@
                 this._private__state._internal_onDestroyed()._internal_subscribe(PaneWidget.prototype._private__onStateDestroyed.bind(this), this, true);
             }
             this._internal_updatePriceAxisWidgetsStates();
+            if (this._private__chart._internal_paneWidgets().indexOf(this) === this._private__chart._internal_paneWidgets().length - 1) {
+                this._private__attributionLogoWidget = (_a = this._private__attributionLogoWidget) !== null && _a !== void 0 ? _a : new AttributionLogoWidget(this._private__paneCell, this._private__chart);
+                this._private__attributionLogoWidget._internal_update();
+            }
+            else {
+                (_b = this._private__attributionLogoWidget) === null || _b === void 0 ? void 0 : _b._internal_removeElement();
+                this._private__attributionLogoWidget = null;
+            }
         }
         _internal_chart() {
             return this._private__chart;
@@ -10853,7 +11010,6 @@
     const sourcePaneViews = buildTimeAxisViewsGetter('normal');
     const sourceTopPaneViews = buildTimeAxisViewsGetter('top');
     const sourceBottomPaneViews = buildTimeAxisViewsGetter('bottom');
-    // ###time
     class TimeAxisWidget {
         constructor(chartWidget, horzScaleBehavior) {
             this._private__leftStub = null;
@@ -10902,7 +11058,7 @@
             this._private__topCanvasBinding.subscribeSuggestedBitmapSizeChanged(this._private__topCanvasSuggestedBitmapSizeChangedHandler);
             const topCanvas = this._private__topCanvasBinding.canvasElement;
             topCanvas.style.position = 'absolute';
-            topCanvas.style.zIndex = '22211';
+            topCanvas.style.zIndex = '2';
             topCanvas.style.left = '0';
             topCanvas.style.top = '0';
             this._private__element.appendChild(this._private__leftStubCell);
@@ -11012,8 +11168,8 @@
                 this._private__canvasBinding.resizeCanvasElement(timeAxisSize);
                 this._private__topCanvasBinding.resizeCanvasElement(timeAxisSize);
                 this._private__isSettingSize = false;
-                // this._private__cell.style.width = `${timeAxisSize.width}px`;
-                // this._private__cell.style.height = `${timeAxisSize.height}px`;
+                this._private__cell.style.width = `${timeAxisSize.width}px`;
+                this._private__cell.style.height = `${timeAxisSize.height}px`;
                 this._private__sizeChanged._internal_fire(timeAxisSize);
             }
             if (this._private__leftStub !== null) {
@@ -11052,17 +11208,16 @@
                 return;
             }
             if (type !== 1 /* InvalidationLevel.Cursor */) {
-                // ###paint
                 this._private__canvasBinding.applySuggestedBitmapSize();
                 const target = tryCreateCanvasRenderingTarget2D(this._private__canvasBinding);
                 if (target !== null) {
                     target.useBitmapCoordinateSpace((scope) => {
                         this._private__drawBackground(scope);
-                        // this._private__drawBorder(scope);
-                        // this._private__drawAdditionalSources(target, sourceBottomPaneViews);
+                        this._private__drawBorder(scope);
+                        this._private__drawAdditionalSources(target, sourceBottomPaneViews);
                     });
                     this._private__drawTickMarks(target);
-                    // this._private__drawAdditionalSources(target, sourcePaneViews);
+                    this._private__drawAdditionalSources(target, sourcePaneViews);
                     // atm we don't have sources to be drawn on time axis except crosshair which is rendered on top level canvas
                     // so let's don't call this code at all for now
                     // this._drawLabels(this._chart.model().dataSources(), target);
@@ -11074,15 +11229,15 @@
                     this._private__rightStub._internal_paint(type);
                 }
             }
-            // this._private__topCanvasBinding.applySuggestedBitmapSize();
-            // const topTarget = tryCreateCanvasRenderingTarget2D(this._private__topCanvasBinding);
-            // if (topTarget !== null) {
-            //     topTarget.useBitmapCoordinateSpace(({ context: ctx, bitmapSize }) => {
-            //         ctx.clearRect(0, 0, bitmapSize.width, bitmapSize.height);
-            //     });
-            //     this._private__drawLabels([...this._private__chart._internal_model()._internal_serieses(), this._private__chart._internal_model()._internal_crosshairSource()], topTarget);
-            //     this._private__drawAdditionalSources(topTarget, sourceTopPaneViews);
-            // }
+            this._private__topCanvasBinding.applySuggestedBitmapSize();
+            const topTarget = tryCreateCanvasRenderingTarget2D(this._private__topCanvasBinding);
+            if (topTarget !== null) {
+                topTarget.useBitmapCoordinateSpace(({ context: ctx, bitmapSize }) => {
+                    ctx.clearRect(0, 0, bitmapSize.width, bitmapSize.height);
+                });
+                this._private__drawLabels([...this._private__chart._internal_model()._internal_serieses(), this._private__chart._internal_model()._internal_crosshairSource()], topTarget);
+                this._private__drawAdditionalSources(topTarget, sourceTopPaneViews);
+            }
         }
         _private__drawAdditionalSources(target, axisViewsGetter) {
             const sources = this._private__chart._internal_model()._internal_serieses();
@@ -11112,22 +11267,21 @@
             const maxWeight = this._private__horzScaleBehavior.maxTickMarkWeight(tickMarks);
             const rendererOptions = this._private__getRendererOptions();
             const options = timeScale._internal_options();
-            // if (options.borderVisible && options.ticksVisible) {
-            //     target.useBitmapCoordinateSpace(({ context: ctx, horizontalPixelRatio, verticalPixelRatio }) => {
-            //         ctx.strokeStyle = this._private__lineColor();
-            //         ctx.fillStyle = this._private__lineColor();
-            //         const tickWidth = Math.max(1, Math.floor(horizontalPixelRatio));
-            //         const tickOffset = Math.floor(horizontalPixelRatio * 0.5);
-            //         ctx.beginPath();
-            //         const tickLen = Math.round(rendererOptions._internal_tickLength * verticalPixelRatio);
-            //         for (let index = tickMarks.length; index--;) {
-            //             const x = Math.round(tickMarks[index].coord * horizontalPixelRatio);
-            //             ctx.rect(x - tickOffset, 0, tickWidth, tickLen);
-            //         }
-            //         ctx.fill();
-            //     });
-            // }
-        
+            if (options.borderVisible && options.ticksVisible) {
+                target.useBitmapCoordinateSpace(({ context: ctx, horizontalPixelRatio, verticalPixelRatio }) => {
+                    ctx.strokeStyle = this._private__lineColor();
+                    ctx.fillStyle = this._private__lineColor();
+                    const tickWidth = Math.max(1, Math.floor(horizontalPixelRatio));
+                    const tickOffset = Math.floor(horizontalPixelRatio * 0.5);
+                    ctx.beginPath();
+                    const tickLen = Math.round(rendererOptions._internal_tickLength * verticalPixelRatio);
+                    for (let index = tickMarks.length; index--;) {
+                        const x = Math.round(tickMarks[index].coord * horizontalPixelRatio);
+                        ctx.rect(x - tickOffset, 0, tickWidth, tickLen);
+                    }
+                    ctx.fill();
+                });
+            }
             target.useMediaCoordinateSpace(({ context: ctx }) => {
                 const yText = (rendererOptions._internal_borderSize +
                     rendererOptions._internal_tickLength +
@@ -11136,7 +11290,7 @@
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillStyle = this._private__textColor();
-                // ###draw label:base marks
+                // draw base marks
                 ctx.font = this._private__baseFont();
                 for (const tickMark of tickMarks) {
                     if (tickMark.weight < maxWeight) {
@@ -11144,11 +11298,12 @@
                         ctx.fillText(tickMark.label, coordinate, yText);
                     }
                 }
-                ctx.font = this._private__baseBoldFont();
+                if (this._private__chart._internal_options().timeScale.allowBoldLabels) {
+                    ctx.font = this._private__baseBoldFont();
+                }
                 for (const tickMark of tickMarks) {
                     if (tickMark.weight >= maxWeight) {
                         const coordinate = tickMark.needAlignCoordinate ? this._private__alignTickMarkLabelCoordinate(ctx, tickMark.coord, tickMark.label) : tickMark.coord;
-                        console.log("#yText ", yText);
                         ctx.fillText(tickMark.label, coordinate, yText);
                     }
                 }
@@ -11187,7 +11342,7 @@
             return makeFont(this._private__fontSize(), this._private__options.fontFamily);
         }
         _private__baseBoldFont() {
-            return makeFont(this._private__fontSize(), this._private__options.fontFamily, 'normal');
+            return makeFont(this._private__fontSize(), this._private__options.fontFamily, 'bold');
         }
         _private__getRendererOptions() {
             if (this._private__rendererOptions === null) {
@@ -11917,8 +12072,13 @@
         return data.open === undefined && data.value === undefined;
     }
     function isFulfilledData(data) {
-        return (data.open !== undefined ||
-            data.value !== undefined);
+        return isFulfilledBarData(data) || isFulfilledLineData(data);
+    }
+    function isFulfilledBarData(data) {
+        return data.open !== undefined;
+    }
+    function isFulfilledLineData(data) {
+        return data.value !== undefined;
     }
 
     /******************************************************************************
@@ -12116,7 +12276,6 @@
             this._private__sortedTimePoints = [];
         }
         _internal_setSeriesData(series, data) {
-            // ###data 源数据处理
             let needCleanupPoints = this._private__pointDataByTimePoint.size !== 0;
             let isTimeScaleAffected = false;
             // save previous series rows data before it's replaced inside this._setRowsToSeries
@@ -12196,8 +12355,6 @@
             const time = timeConverter(data.time);
             const lastSeriesTime = this._private__seriesLastTimePoint.get(series);
             if (lastSeriesTime !== undefined && this._private__horzScaleBehavior.key(time) < this._private__horzScaleBehavior.key(lastSeriesTime)) {
-                
-                console.log("#1111 ", this._private__horzScaleBehavior.key(time), " 2222 ", this._private__horzScaleBehavior.key(lastSeriesTime));
                 throw new Error(`Cannot update oldest data, last time=${lastSeriesTime}, new time=${time}`);
             }
             let pointDataAtTime = this._private__pointDataByTimePoint.get(this._private__horzScaleBehavior.key(time));
@@ -12517,6 +12674,7 @@
         textColor: '#191919',
         fontSize: 12,
         fontFamily: defaultFontFamily,
+        attributionLogo: true,
     };
 
     const priceScaleOptionsDefaults = {
@@ -12554,6 +12712,7 @@
         ticksVisible: false,
         uniformDistribution: false,
         minimumHeight: 0,
+        allowBoldLabels: true,
     };
 
     const watermarkOptionsDefaults = {
@@ -12643,14 +12802,13 @@
         if (data.length === 0) {
             return;
         }
-        // ###date
-       // let prevTime = bh.key(data[0].time);
-        // for (let i = 1; i < data.length; ++i) {
-        //     const currentTime = bh.key(data[i].time);
-        //     const checkResult = allowDuplicates ? prevTime <= currentTime : prevTime < currentTime;
-        //     assert(checkResult, `data must be asc ordered by time, index=${i}, time=${currentTime}, prev time=${prevTime}`);
-        //     prevTime = currentTime;
-        // }
+        let prevTime = bh.key(data[0].time);
+        for (let i = 1; i < data.length; ++i) {
+            const currentTime = bh.key(data[i].time);
+            const checkResult = allowDuplicates ? prevTime <= currentTime : prevTime < currentTime;
+            assert(checkResult, `data must be asc ordered by time, index=${i}, time=${currentTime}, prev time=${prevTime}`);
+            prevTime = currentTime;
+        }
     }
     function checkSeriesValuesType(type, data) {
         data.forEach(getChecker(type));
@@ -12670,7 +12828,7 @@
         }
     }
     function checkBarItem(type, barItem) {
-        if (!isFulfilledData(barItem)) {
+        if (!isFulfilledBarData(barItem)) {
             return;
         }
         assert(
@@ -12687,7 +12845,7 @@
         typeof barItem.close === 'number', `${type} series item data value of close must be a number, got=${typeof barItem.close}, value=${barItem.close}`);
     }
     function checkLineItem(type, lineItem) {
-        if (!isFulfilledData(lineItem)) {
+        if (!isFulfilledLineData(lineItem)) {
             return;
         }
         assert(
@@ -13261,7 +13419,6 @@
             return res;
         }
         _private__sendUpdateToChart(update) {
-            // ###update
             const model = this._private__chartWidget._internal_model();
             model._internal_updateTimeScale(update._internal_timeScale._internal_baseIndex, update._internal_timeScale._internal_points, update._internal_timeScale._internal_firstChangedPointIndex);
             update._internal_series.forEach((value, series) => series._internal_setData(value._internal_data, value._internal_info));
@@ -13284,7 +13441,10 @@
                 }
                 seriesData.set(this._private__mapSeriesToApi(series), data);
             });
-            const hoveredSeries = param._internal_hoveredSeries === undefined ? undefined : this._private__mapSeriesToApi(param._internal_hoveredSeries);
+            const hoveredSeries = param._internal_hoveredSeries === undefined ||
+                !this._private__seriesMapReversed.has(param._internal_hoveredSeries)
+                ? undefined
+                : this._private__mapSeriesToApi(param._internal_hoveredSeries);
             return {
                 time: param._internal_originalTime,
                 logical: param._internal_index,
@@ -13333,6 +13493,17 @@
     function createChart(container, options) {
         return createChartEx(container, new HorzScaleBehaviorTime(), HorzScaleBehaviorTime._internal_applyDefaults(options));
     }
+    /**
+     * Provides the default implementation of the horizontal scale (time-based) that can be used as a base for extending the horizontal scale with custom behavior.
+     * This allows for the introduction of custom functionality without re-implementing the entire {@link IHorzScaleBehavior}&lt;{@link Time}&gt; interface.
+     *
+     * For further details, refer to the {@link createChartEx} chart constructor method.
+     *
+     * @returns An uninitialized class implementing the {@link IHorzScaleBehavior}&lt;{@link Time}&gt; interface
+     */
+    function defaultHorzScaleBehavior() {
+        return HorzScaleBehaviorTime;
+    }
 
     /// <reference types="_build-time-constants" />
     const customSeriesDefaultOptions = Object.assign(Object.assign({}, seriesOptionsDefaults), customStyleDefaults);
@@ -13340,7 +13511,7 @@
      * Returns the current version as a string. For example `'3.3.0'`.
      */
     function version() {
-        return "4.1.2";
+        return "4.2.0";
     }
 
     var LightweightChartsModule = /*#__PURE__*/Object.freeze({
@@ -13358,6 +13529,7 @@
         createChart: createChart,
         createChartEx: createChartEx,
         customSeriesDefaultOptions: customSeriesDefaultOptions,
+        defaultHorzScaleBehavior: defaultHorzScaleBehavior,
         isBusinessDay: isBusinessDay,
         isUTCTimestamp: isUTCTimestamp,
         version: version

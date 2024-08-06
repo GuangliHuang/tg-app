@@ -1,11 +1,10 @@
 <template>
-  <div id="klineContainer" style="width: 100%;height: 310px;position: relative;"></div>
+  <div id="klineContainer" style="width: 100%;height: 310px;position: relative;margin: 0 auto;"></div>
 </template>
 
 <script>
   import tickers from './data.js';
-  import { createChart } from 'lightweight-charts';
-  // import './lightweight-charts.js';
+  import './lightweight-charts.standalone.development2';
 
   const { ticker } = tickers;
 
@@ -24,14 +23,6 @@
     },
     methods: {
       render() {
-        window.LightweightCharts = createChart;
-        const {
-          LineData,
-          PriceLineSource,
-          Time,
-          WhitespaceData,
-        } = "lightweight-charts";
-
         let series = null;
         let chart = null;
         let day =3;
@@ -44,92 +35,99 @@
         let node = {};
         let seconds = new Date().getTime();
         // ticker.length 527
-        for(let i=0; i < 200; i++) {
+        for(let i=0; i < 350; i++) {
           node = { value: ticker[i].value, time: seconds + 200 };
           node.format = new Date(node.time).toLocaleTimeString();
           seconds = node.time;
           data.push(node);
         } 
         this.data = data
-        this.data.forEach((item, index) => {
-            console.log("# ", new Date(item.time).toLocaleTimeString())
-        });
-        this.initKling(this.data, 310, 2);
+        this.secondLineInit(this.data, 380, 2);
 
-        this.length = 201;
+        this.length = 10;
+        this.nodeList = this.setTransitionData(this.data);
         this.callbackFn();
       },
+      setTransitionData(data) {
+        let nodeList = [];
+        let radio = 3.5;
+        let start;
+        let end;
+        let dif;
+        let step;
+        data = ticker.reverse();
+
+        for (let i = 20; i <= 200; i++) {
+          if (i > 0) {
+            start = Number(data[i-1].value);
+            end = Number(data[i].value);
+          } else {
+            start = Number(data[0].value);
+            end = Number(data[1].value);
+          }
+          dif = end - start;
+          step = dif / radio;
+
+          for (let v = 0; v <= radio; v++) {
+            if (v === 0) {
+              nodeList.push({ value: start - step * 0.55 });
+              nodeList.push({ value: start - step * 0.80 });
+              nodeList.push({ value: start - step * 0.55 });
+              nodeList.push({ value: start });
+            } else {
+              let node = { value: start + step * v };
+              nodeList.push(node);
+            }
+          }
+        }
+
+        return nodeList;
+      },
       callbackFn() {
-          let node = ticker[this.length];
-          if (!node) return;
-          let t = this.data[this.data.length - 1].time;
-          let current = { value: node.value, time: t + 200 };
-          current.format = new Date(current.time).toLocaleTimeString();
+          if (this.nodeList.length === 0) return;
+          let current = {
+              time: this.data[this.data.length - 1].time + 125,
+              value: this.nodeList[this.length].value,
+              format: new Date(this.data[this.data.length - 1].time).toLocaleTimeString()
+          };
 
           this.length++;
           this.data.push(current);
-
-          // let previous = ticker[this.length];
-          // let start = Number(previous.value);
-          // let end = Number(ticker[this.length].value);
-          // let dif = end - start;
-          // let radio = 6; // dif >= 1 ? 100 : 10;
-          // let step = dif / radio;
-          
-          // let t = this.data[this.data.length - 1].time;
-          // let node = {}
-          // for (let i = 0; i <= radio; i++) {
-          //   if (i === 0) {
-          //     this.data.push({ value: start - step * 0.55, time: t + 125 });
-
-          //     t = this.data[this.data.length - 1].time;
-          //     this.data.push({ value: start - step * 0.75, time: t + 125 });
-
-          //     t = this.data[this.data.length - 1].time;
-          //     this.data.push({ value: start - step * 0.55, time: t + 125 });
-              
-          //     t = this.data[this.data.length - 1].time;
-          //     this.data.push({ value: start, time: t + 255 });
-          //   } else {
-          //     t = this.data[this.data.length - 1].time;
-          //     node = { value: start + step * i, time: t + 125 };
-          //     this.data.push(node);
-          //   }
-          // }
-
-          this.length++;
           this.series.setData(this.data);
 
-          // cancelAnimationFrame取消请求动画帧
           setTimeout(() => {
-            window.requestAnimationFrame(this.callbackFn);
-          }, 250);
+            this.callbackFn();
+          }, 95);
       },
-      initKling(data, h, s) {
-          const container = document.getElementById("klineContainer");
+      secondLineInit(data, h, s) {
           let scale = s > 10 ? 10 : s;
+
+          const container = document.getElementById("klineContainer");
           let width = container.offsetWidth;
-          let height = h - 34;
-          this.chart = createChart(container, {
+          let height = h;
+
+          this.chart = window.LightweightCharts.createChart(container, {
             rightPriceScale: {
-                autoScale: true,  // 关闭自动调整刻度
-                mode: 0, // 设置为1表示手动模式
-                scaleMargins: {
-                  top: 0.2,
-                  bottom: 0.3,
-                },
-                borderVisible: false
+              minimumWidth: 30, // 纵座标与容器右侧的距离
+              autoScale: true,
+              scaleMargins: {
+                top: 0.1,
+                bottom: 0.1,
+              }
             },
             timeScale: {
+                ticksVisible: true,
                 barSpacing: 2,  // 时间刻度的宽度, 使曲线变化比较平顺
-                rightOffset: 5,  // 线与右侧的距离
-                timeVisible: true,
+                minBarSpacing: 0.01,
+                rightOffset: 30,  // 线与右侧的距离
+                visible: true,
                 secondsVisible: true,
+                timeVisible: true,
+                fixLeftEdge: false,
                 borderVisible: true,
                 tickMarkFormatter: (time, tickMarkType, locale) => {
                   const date = new Date(time); // 将时间戳转换为 Date 对象
-                  const formatTime = date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                  return formatTime;
+                  return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
                 }
             },
             layout: {
@@ -173,7 +171,9 @@
             lineWidth: 2,
             lineType: 2,
             lastPriceAnimation: 1,
+            priceLineSource: 1,
             priceLineColor: '#3df9a0',
+            lastValueVisible: true,
             priceFormat: {
                 type: 'price',
                 minMove: scale <= 1 ? 0.01 : Number(Number(0).toFixed(scale - 1) + 1), // 价格数值越小，minMove也要变小，否则纵坐标无法显示
