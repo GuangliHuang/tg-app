@@ -97,7 +97,7 @@
 
           setTimeout(() => {
             this.callbackFn();
-          }, 95);
+          }, 120);
       },
       secondLineInit(data, h, s) {
           let scale = s > 10 ? 10 : s;
