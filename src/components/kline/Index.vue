@@ -20,8 +20,13 @@
     },
     mounted() {
       this.render();
+      this.run();
     },
     methods: {
+      run() {
+          this.series.setData(this.data);
+          requestAnimationFrame(this.run);
+      },
       render() {
         let series = null;
         let chart = null;
@@ -93,7 +98,6 @@
 
           this.length++;
           this.data.push(current);
-          this.series.setData(this.data);
 
           setTimeout(() => {
             this.callbackFn();
