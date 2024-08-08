@@ -1,7 +1,7 @@
 <template>
   <div>
     <Kline />
-    <HelloWorld msg="Telegram mini app" />
+    <!-- <HelloWorld msg="Telegram mini app" /> -->
   </div>
 </template>
 <!-- <script setup lang="ts"> -->

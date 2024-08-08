@@ -1,5 +1,5 @@
 <template>
-  <div id="klineContainer" style="width: 100%;height: 310px;position: relative;margin: 0 auto;"></div>
+  <div id="klineContainer" style="width: 70%;height: 380;position: relative;margin: 0 auto;"></div>
 </template>
 
 <script>
@@ -56,7 +56,7 @@
         let dif;
         let step;
         data = ticker.reverse();
-
+        // return data;
         for (let i = 20; i <= 200; i++) {
           if (i > 0) {
             start = Number(data[i-1].value);
@@ -70,9 +70,9 @@
 
           for (let v = 0; v <= radio; v++) {
             if (v === 0) {
-              nodeList.push({ value: start - step * 0.55 });
-              nodeList.push({ value: start - step * 0.80 });
-              nodeList.push({ value: start - step * 0.55 });
+              nodeList.push({ value: start - step * 0.65 });
+              nodeList.push({ value: start - step * 0.8 });
+              nodeList.push({ value: start - step * 0.65 });
               nodeList.push({ value: start });
             } else {
               let node = { value: start + step * v };
@@ -117,8 +117,8 @@
             },
             timeScale: {
                 ticksVisible: true,
-                barSpacing: 2,  // 时间刻度的宽度, 使曲线变化比较平顺
-                minBarSpacing: 0.01,
+                barSpacing: 3,  // 时间刻度的宽度, 使曲线变化比较平顺
+                minBarSpacing: 0.001,
                 rightOffset: 30,  // 线与右侧的距离
                 visible: true,
                 secondsVisible: true,
@@ -131,12 +131,11 @@
                 }
             },
             layout: {
-              textColor: '#333',
               background: {
                   type: 'solid',
-                  color: '#231938',
+                  color: '#ffffff',
               },
-              textColor: 'rgba(255, 255, 255, 1)',
+              textColor: 'rgba(0, 0, 0, .95)',
             },
             grid: {
               horzLines: {
@@ -165,14 +164,14 @@
           this.chart.resize(width, height);
 
           this.series = this.chart.addAreaSeries({
-            topColor: 'rgba(121, 96, 71, 1)',
-            bottomColor: 'rgba(121, 96, 71, 0.05)',
+            topColor: 'rgba(244, 196, 62, 0.55)',
+            bottomColor: 'rgba(244, 196, 62, 0)',
             lineColor: '#ffd15c',
             lineWidth: 2,
             lineType: 2,
             lastPriceAnimation: 1,
             priceLineSource: 1,
-            priceLineColor: '#3df9a0',
+            priceLineColor: '#13d519',
             lastValueVisible: true,
             priceFormat: {
                 type: 'price',
