@@ -24,8 +24,11 @@
     },
     methods: {
       run() {
-          this.series.setData(this.data);
-          requestAnimationFrame(this.run);
+          let length = this.data.length;
+          this.series.update(this.data[length - 1]);
+          setTimeout(() => {
+             window.requestAnimationFrame(this.run);
+          }, 500);
       },
       render() {
         let series = null;
@@ -41,7 +44,7 @@
         let seconds = new Date().getTime();
         // ticker.length 527
         for(let i=0; i < 350; i++) {
-          node = { value: ticker[i].value, time: seconds + 200 };
+          node = { value: ticker[i].value, time: seconds + 250 };
           node.format = new Date(node.time).toLocaleTimeString();
           seconds = node.time;
           data.push(node);
@@ -50,44 +53,10 @@
         this.secondLineInit(this.data, 380, 2);
 
         this.length = 10;
-        this.nodeList = this.setTransitionData(this.data);
+        this.nodeList = ticker.reverse();
         this.callbackFn();
       },
-      setTransitionData(data) {
-        let nodeList = [];
-        let radio = 3.5;
-        let start;
-        let end;
-        let dif;
-        let step;
-        data = ticker.reverse();
-        // return data;
-        for (let i = 20; i <= 200; i++) {
-          if (i > 0) {
-            start = Number(data[i-1].value);
-            end = Number(data[i].value);
-          } else {
-            start = Number(data[0].value);
-            end = Number(data[1].value);
-          }
-          dif = end - start;
-          step = dif / radio;
-
-          for (let v = 0; v <= radio; v++) {
-            if (v === 0) {
-              nodeList.push({ value: start - step * 0.65 });
-              nodeList.push({ value: start - step * 0.8 });
-              nodeList.push({ value: start - step * 0.65 });
-              nodeList.push({ value: start });
-            } else {
-              let node = { value: start + step * v };
-              nodeList.push(node);
-            }
-          }
-        }
-
-        return nodeList;
-      },
+      
       callbackFn() {
           if (this.nodeList.length === 0) return;
           let current = {
@@ -121,7 +90,7 @@
             },
             timeScale: {
                 ticksVisible: true,
-                barSpacing: 3,  // 时间刻度的宽度, 使曲线变化比较平顺
+                barSpacing: 5,  // 时间刻度的宽度, 使曲线变化比较平顺
                 minBarSpacing: 0.001,
                 rightOffset: 30,  // 线与右侧的距离
                 visible: true,

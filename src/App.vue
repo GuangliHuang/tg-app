@@ -1,19 +1,19 @@
 <template>
   <div>
+    <!-- <Area /> -->
     <Kline />
-    <!-- <HelloWorld msg="Telegram mini app" /> -->
   </div>
 </template>
 <!-- <script setup lang="ts"> -->
 <script>
   import WebApp from '@twa-dev/sdk'
   import Kline from './components/kline/Index.vue'
-  import HelloWorld from './components/HelloWorld.vue'
+  // import Area from './components/Area/Index.vue'
 
   export default {
     name: "App",
     components: {
-      Kline, HelloWorld
+      Kline
     },
     data() {
       return {

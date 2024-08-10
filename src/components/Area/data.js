@@ -1,4 +1,5 @@
-const ticker = [
+export default {
+    ticker: [
         {
             "close": "3648.2400",
             "closeTime": 1712579226150,
@@ -6499,4 +6500,5 @@ const ticker = [
             "value": 3639.98,
             "time": 1722327294441
         }
-    ];
+    ]
+}
