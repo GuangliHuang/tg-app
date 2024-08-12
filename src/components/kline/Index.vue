@@ -4,7 +4,7 @@
 
 <script>
   import tickers from './data.js';
-  import './lightweight-charts.standalone.development2';
+  import './lightweight-charts.standalone.development';
 
   const { ticker } = tickers;
 
